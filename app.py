@@ -11,7 +11,6 @@ st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
 CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
-MA_WINDOWS = [3, 5]  # days for moving average
 
 # ─── Responsive CSS ─────────────────────────────────────────────
 st.markdown("""
@@ -107,8 +106,7 @@ save_settings(settings)
 # ─── Entry Controls ─────────────────────────────────────────────
 if st.sidebar.button("Add Entry"):
     new = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
-    df_all = pd.concat([df_all, pd.DataFrame([new])], ignore_index=True)
-    df_all = df_all.sort_values(["Account", "Date"])
+    df_all = pd.concat([df_all, pd.DataFrame([new])], ignore_index=True).sort_values(["Account", "Date"])
     df_all.to_csv(CSV_FILE, index=False)
     st.session_state["notification"] = f"✅ Logged {daily_pl:+.2f} for {account}"
     save_settings(settings)
@@ -166,33 +164,28 @@ st.markdown(
 c1, c2, c3 = st.columns([1, 1, 1])
 c1.metric("Start", f"${sb:,.2f}")
 c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
-c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${{curr_bal-sb}}:+.2f")
+c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ─── Balance Chart + MA ────────────────────────────────────────
-st.subheader("Balance Over Time (+ Moving Average)")
-ma_win = st.selectbox("Moving-Average Window (days)", MA_WINDOWS, index=0)
-df_acc["MA"] = df_acc["Balance"].rolling(window=ma_win, min_periods=1).mean()
+# ─── Balance Chart ─────────────────────────────────────────────
+st.subheader("Balance Over Time")
 
 fig, ax = plt.subplots(figsize=(10, 5))
 fig.patch.set_facecolor("#222222")
 ax.set_facecolor("#333333")
 
-# Plot lines
-ax.plot(df_acc["Date"], df_acc["Balance"], marker='o', linewidth=2.5, color="#00FF00", label="Balance")
-ax.plot(df_acc["Date"], df_acc["MA"], linestyle='--', linewidth=2, color="#FFA500", label=f"{ma_win}-day MA")
+# Neon-blue line only
+neon_blue = "#00FFFF"
+ax.plot(df_acc["Date"], df_acc["Balance"], linewidth=2.5, color=neon_blue)
 
-# Neon styling
-neon = "#39FF14"
-ax.set_title("Balance Progress", color=neon)
-ax.set_xlabel("Date", color=neon)
-ax.set_ylabel("Balance ($)", color=neon)
-ax.tick_params(colors=neon)
+# Neon green labels and text
+neon_text = "#39FF14"
+ax.set_title("Balance Progress", color=neon_text)
+ax.set_xlabel("Date", color=neon_text)
+ax.set_ylabel("Balance ($)", color=neon_text)
+ax.tick_params(colors=neon_text)
 for spine in ax.spines.values():
-    spine.set_color(neon)
-leg = ax.legend()
-for txt in leg.get_texts():
-    txt.set_color(neon)
+    spine.set_color(neon_text)
 
 # Date formatting
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
