@@ -38,11 +38,15 @@ settings = load_settings()
 
 # ─── Load Data ─────────────────────────────────────────────────
 @st.cache_data
-def load_data(fp: str) -> pd.DataFrame:
-    if os.path.exists(fp):
-        df = pd.read_csv(fp, parse_dates=["Date"])
-        return df.dropna(subset=["Date"])
-    return pd.DataFrame(columns=["Account","Date","Daily P/L"])
+def load_settings() -> dict:
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            # corrupted or empty file → reset
+            return {}
+    return {}
 
 df_all = load_data(CSV_FILE)
 
