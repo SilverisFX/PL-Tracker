@@ -79,9 +79,6 @@ with st.sidebar:
             settings.get(f"last_date_{account}", str(date.today()))
         )
     )
-        )
-    )
-    )
     daily_pl = st.number_input(
         "Today's P/L",
         step=0.01,
@@ -91,6 +88,7 @@ with st.sidebar:
     settings[f"last_date_{account}"] = str(entry_date)
     # persist today's P/L value
     settings[f"daily_pl_{account}"] = daily_pl
+
     sb = st.number_input(
         "Starting Balance",
         value=settings[f"start_balance_{account}"],
@@ -139,7 +137,7 @@ with st.sidebar:
                 del st.session_state[key]
         st.experimental_rerun()
 
-# ─── Main Header & Metrics ─────────────────────────────────────
+# ─── Main Header & Metrics & Metrics ─────────────────────────────────────
 st.markdown(f"## Tracker: {account}")
 
 
