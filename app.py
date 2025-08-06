@@ -70,8 +70,12 @@ if st.sidebar.checkbox("Confirm reset all data"):
             os.remove(CSV_FILE)
         df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
         for acct in ACCOUNTS:
-            st.session_state[f"start_balance_{acct}"] = 1000.0
-            st.session_state[f"profit_target_{acct}"] = 2000.0
+            key_start = f"start_balance_{acct}"
+            key_target = f"profit_target_{acct}"
+            if key_start in st.session_state:
+                del st.session_state[key_start]
+            if key_target in st.session_state:
+                del st.session_state[key_target]
         st.session_state['notification'] = "🧨 All data has been reset!"
         st.experimental_rerun()
 
