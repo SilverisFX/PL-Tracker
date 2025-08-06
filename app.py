@@ -91,15 +91,14 @@ with st.sidebar:
     save_settings(settings)
 
     if st.button("Add Entry"):
-        new_row = pd.DataFrame([{
-            "Account": account,
-            "Date": entry_date,
-            "Daily P/L": daily_pl
-        }])
+        new_row = pd.DataFrame([{"Account": account, "Date": entry_date, "Daily P/L": daily_pl}])
         df_all = pd.concat([df_all, new_row], ignore_index=True)
+        # ensure correct dtypes before sorting
+        df_all["Account"] = df_all["Account"].astype(str)
+        df_all["Date"] = pd.to_datetime(df_all["Date"])
         df_all = df_all.sort_values(["Account", "Date"]).reset_index(drop=True)
         df_all.to_csv(CSV_FILE, index=False)
-        st.success(f"Logged {daily_pl:+.2f} for {account}")
+        st.success(f"Logged {daily_pl:+.2f} for {account}") {daily_pl:+.2f} for {account}")
 
     if st.button("Undo Last"):
         mask = df_all["Account"] == account
