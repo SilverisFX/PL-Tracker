@@ -117,9 +117,6 @@ for i, acct in enumerate(ACCOUNTS):
         prog = min(curr / pt if pt else 0, 1.0)
         pct_gain = (curr - sb) / sb * 100
 
-        # Streak Tracker
-        df_acc["Green"] = df_acc["Daily P/L"] > 0
-        streak = df_acc["Green"][::-1].cumprod().sum()
 
         # Metrics
         cols = st.columns(3)
