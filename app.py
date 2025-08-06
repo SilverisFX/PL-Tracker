@@ -170,7 +170,20 @@ for i, acct in enumerate(ACCOUNTS):
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.subheader("Balance Over Time")
-            st.warning("Plotly is not installed. Run `pip install plotly` to enable the zoomable chart.")
+            import matplotlib.pyplot as plt
+            import matplotlib.dates as mdates
+            fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
+            ax.set_facecolor('#333')
+            ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
+            ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+            ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
+            ax.tick_params(colors='#39FF14')
+            for spine in ax.spines.values():
+                spine.set_color('#39FF14')
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate()
+            ax.grid(False)
+            st.pyplot(fig, use_container_width=True)
 
         st.subheader("Entries")
         st.dataframe(
