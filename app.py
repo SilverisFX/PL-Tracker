@@ -1,9 +1,8 @@
 import os
 import json
-from datetime import date, datetime, timedelta
+from datetime import date
 
 import pandas as pd
-import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -34,7 +33,6 @@ def load_settings() -> dict:
             return {}
     return {}
 
-
 def save_settings(settings: dict):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
@@ -42,9 +40,7 @@ def save_settings(settings: dict):
 settings = load_settings()
 
 # ─── Data Loading ──────────────────────────────────────────────
-
 def load_data() -> pd.DataFrame:
-    """Load data from CSV each run to avoid caching issues."""
     if os.path.exists(CSV_FILE):
         return pd.read_csv(
             CSV_FILE,
@@ -53,117 +49,116 @@ def load_data() -> pd.DataFrame:
         ).dropna(subset=["Date"])
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
-# Load all entries
-df_all = load_data()
+# initialize
+if "df_all" not in st.session_state:
+    st.session_state.df_all = load_data()
 
-# ─── Session State Defaults ────────────────────────────────────
-for acct in ACCOUNTS:
-    settings.setdefault(f"start_balance_{acct}", 1000.0)
-    settings.setdefault(f"profit_target_{acct}", 2000.0)
-    st.session_state.setdefault(f"daily_pl_{acct}", settings.get(f"daily_pl_{acct}", 0.0))
-    st.session_state.setdefault(f"last_date_{acct}", settings.get(f"last_date_{acct}", str(date.today())))
+df_all = st.session_state.df_all
 
 # ─── Sidebar Inputs ────────────────────────────────────────────
-with st.sidebar:
-    st.header("Account & Entry")
-    account = st.selectbox(
-        "Account",
-        ACCOUNTS,
-        index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0]))
-    )
-    settings["last_account"] = account
+st.sidebar.header("Account & Entry")
 
-    entry_date = st.date_input(
-        "Date",
-        value=pd.to_datetime(
-            settings.get(f"last_date_{account}", str(date.today()))
-        )
-    )
-    daily_pl = st.number_input(
-        "Today's P/L",
-        step=0.01,
-        format="%.2f",
-        key=f"daily_pl_{account}"
-    )
-    settings[f"last_date_{account}"] = str(entry_date)
-    settings[f"daily_pl_{account}"] = daily_pl
+account = st.sidebar.selectbox(
+    "Account",
+    ACCOUNTS,
+    index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0]))
+)
+settings["last_account"] = account
 
-    sb = st.number_input(
-        "Starting Balance",
-        value=settings[f"start_balance_{account}"],
-        step=100.0,
-        format="%.2f"
-    )
-    pt = st.number_input(
-        "Profit Target",
-        value=settings[f"profit_target_{account}"],
-        step=100.0,
-        format="%.2f"
-    )
-    settings[f"start_balance_{account}"], settings[f"profit_target_{account}"] = sb, pt
+entry_date = st.sidebar.date_input(
+    "Date",
+    value=pd.to_datetime(settings.get(f"last_date_{account}", date.today()))
+)
 
-    save_settings(settings)
+daily_pl = st.sidebar.number_input(
+    "Today's P/L",
+    step=0.01,
+    format="%.2f",
+    key=f"daily_pl_{account}"
+)
+settings[f"last_date_{account}"] = str(entry_date)
+settings[f"daily_pl_{account}"] = daily_pl
 
-    if st.button("Add Entry"):
-        new_row = pd.DataFrame([
-            {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
-        ])
-        df_all = pd.concat([df_all, new_row], ignore_index=True)
-        df_all.sort_values(["Account", "Date"], inplace=True)
-        df_all.to_csv(CSV_FILE, index=False)
+sb = st.sidebar.number_input(
+    "Starting Balance",
+    value=settings.get(f"start_balance_{account}", 1000.0),
+    step=100.0,
+    format="%.2f"
+)
+pt = st.sidebar.number_input(
+    "Profit Target",
+    value=settings.get(f"profit_target_{account}", 2000.0),
+    step=100.0,
+    format="%.2f"
+)
+settings[f"start_balance_{account}"], settings[f"profit_target_{account}"] = sb, pt
 
-    if st.button("Undo Last"):
-        df_acc = df_all[df_all["Account"] == account]
-        if not df_acc.empty:
-            last_idx = df_acc.index[-1]
-            df_all.drop(last_idx, inplace=True)
-            df_all.to_csv(CSV_FILE, index=False)
-        else:
-            st.warning("No entries to undo")
+save_settings(settings)
 
-    # ─── Reset All Data ───────────────────────────────────────────
-    confirm = st.checkbox("I understand this will delete ALL data permanently")
-    if confirm and st.button("Reset All Data"):
-        # Remove CSV and settings files
-        for file in (CSV_FILE, SETTINGS_FILE):
-            if os.path.exists(file):
-                os.remove(file)
-        # Clear in-memory data and settings
-        settings.clear()
-        df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
-        save_settings(settings)
-        # Clear session state entries
-        for key in list(st.session_state.keys()):
-            if key.startswith("daily_pl_") or key.startswith("last_date_") or key.startswith("start_balance_") or key.startswith("profit_target_") or key == "last_account":
-                del st.session_state[key]
+# Add Entry
+def add_entry():
+    new_row = pd.DataFrame([
+        {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
+    ])
+    st.session_state.df_all = pd.concat([st.session_state.df_all, new_row], ignore_index=True)
+    st.session_state.df_all.sort_values(["Account", "Date"], inplace=True)
+    st.session_state.df_all.to_csv(CSV_FILE, index=False)
+    st.experimental_rerun()
+
+if st.sidebar.button("Add Entry"):
+    add_entry()
+
+# Undo Last
+def undo_last():
+    df_acc = st.session_state.df_all[st.session_state.df_all["Account"] == account]
+    if not df_acc.empty:
+        last_idx = df_acc.index[-1]
+        st.session_state.df_all = st.session_state.df_all.drop(last_idx)
+        st.session_state.df_all.to_csv(CSV_FILE, index=False)
         st.experimental_rerun()
+    else:
+        st.warning("No entries to undo")
 
-# ─── Main Header & Metrics & Metrics & Metrics & Metrics & Metrics ─────────────────────────────────────
+if st.sidebar.button("Undo Last"):
+    undo_last()
+
+# Reset All Data
+def reset_all():
+    for file in (CSV_FILE, SETTINGS_FILE):
+        if os.path.exists(file):
+            os.remove(file)
+    settings.clear()
+    st.session_state.df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
+    save_settings(settings)
+    st.experimental_rerun()
+
+confirm = st.sidebar.checkbox("I understand this will delete ALL data permanently")
+if confirm and st.sidebar.button("Reset All Data"):
+    reset_all()
+
+# ─── Main Display ──────────────────────────────────────────────
 st.markdown(f"## Tracker: {account}")
 
-
-# Prepare account data
-mask = df_all["Account"] == account
-df_acc = df_all[mask].copy().sort_values("Date")
-sb = settings[f"start_balance_{account}"]
-pt = settings[f"profit_target_{account}"]
+df_acc = st.session_state.df_all[st.session_state.df_all["Account"] == account].copy()
 if df_acc.empty:
-    df_acc = pd.DataFrame([
-        {"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}
-    ])
-# Calculate balance
-df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
-curr = df_acc.iloc[-1]["Balance"]
-gain = df_acc.iloc[-1]["Daily P/L"]
-prog = min(curr / pt if pt else 0, 1.0)
-pct_gain = (curr - sb) / sb * 100
+    df_acc = pd.DataFrame([{"Account": account, "Date": date.today(), "Daily P/L": 0.0}])
+df_acc.sort_values("Date", inplace=True)
 
-# Metrics display
+sb = settings.get(f"start_balance_{account}", 1000.0)
+pt = settings.get(f"profit_target_{account}", 2000.0)
+
+# Calculate balance
+=df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+curr = df_acc.iloc[-1]["Balance"]
+pct_gain = (curr - sb) / sb * 100
+prog = min(curr / pt if pt else 0, 1.0)
+
+# Metrics
 cols = st.columns(2)
 cols[0].metric("Start", f"${sb:,.2f}")
 cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
 
-# Progress to Target Bar
+# Progress Bar
 st.subheader("Progress to Target")
 st.markdown(f"""
 <style>
@@ -175,7 +170,7 @@ st.markdown(f"""
 .neon-bar {{
   background: #87CEFA;
   height: 25px;
-  width: {prog * 100:.1f}%;
+  width: {prog*100:.1f}%;
   border-radius: 12px;
   animation: neon 2s infinite;
 }}
@@ -191,12 +186,12 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.write(f"{prog*100:.1f}% to target")
 
-# ─── Balance Chart ─────────────────────────────────────────────
+# Balance Chart
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
 ax.set_facecolor('#333')
-ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
-ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+ax.plot(df_acc['Date'], df_acc['Balance'], linewidth=2.5)
+ax.fill_between(df_acc['Date'], df_acc['Balance'], alpha=0.2)
 ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
 ax.tick_params(colors='#39FF14')
 for spine in ax.spines.values():
@@ -206,7 +201,7 @@ fig.autofmt_xdate()
 ax.grid(False)
 st.pyplot(fig, use_container_width=True)
 
-# ─── Entries Table ─────────────────────────────────────────────
+# Entries Table
 st.subheader('Entries')
 st.dataframe(
     df_acc.style
