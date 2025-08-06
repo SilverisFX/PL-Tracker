@@ -165,8 +165,7 @@ c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
 c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ─── Animated Neon-Blue Progress Bar ─────────────────────────
-st.markdown(f"""
+# (Progress bar removed per request)own(f"""
 <style>
 .progress-container {{
     background-color: #222;
@@ -197,12 +196,6 @@ st.markdown(f"""
 </div>
 <div class="progress-text">{prog_pct * 100:.1f}% to target</div>
 """, unsafe_allow_html=True)
-
-c1,c2,c3=st.columns([1,1,1])
-c1.metric("Start",f"${sb:,.2f}")
-c2.metric("Current",f"${curr_bal:,.2f}",delta=f"{pct_gain:+.2f}%")
-c3.metric("Progress",f"{prog_pct*100:.1f}%",delta=f"${curr_bal-sb:+.2f}")
-st.markdown('</div>',unsafe_allow_html=True)
 
 # ─── View Range Zoom Buttons ───────────────────────────────────
 choice=st.session_state.get('view','All')
