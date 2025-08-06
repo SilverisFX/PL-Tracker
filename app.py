@@ -42,8 +42,9 @@ def save_settings(settings: dict):
 settings = load_settings()
 
 # ─── Data Loading ──────────────────────────────────────────────
-@st.cache_data
+
 def load_data() -> pd.DataFrame:
+    """Load data from CSV each run to avoid caching issues."""
     if os.path.exists(CSV_FILE):
         return pd.read_csv(
             CSV_FILE,
