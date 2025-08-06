@@ -1,6 +1,6 @@
 import os
 import json
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -78,6 +78,8 @@ with st.sidebar:
 
     save_settings(settings)
 
+    st.metric("📆 Today's P/L", f"{daily_pl:+.2f}")
+
     with st.form(key=f"form_{account}"):
         submitted = st.form_submit_button("➕ Add Entry")
         if submitted:
@@ -118,8 +120,19 @@ for i, acct in enumerate(ACCOUNTS):
             df_acc = pd.DataFrame([{"Account": acct, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
 
         df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+
+        # 🧠 Patch: Dynamic today's P/L
+        today = pd.to_datetime(datetime.now().date())
+        daily_df = df_acc[pd.to_datetime(df_acc["Date"]).dt.date == today.date()]
+        daily_pl = daily_df["Daily P/L"].sum()
+
+        session_key = f"daily_pl_{acct}"
+        st.session_state[session_key] = daily_pl
+        settings[session_key] = daily_pl
+        save_settings(settings)
+
         curr = df_acc.iloc[-1]["Balance"]
-        gain = df_acc.iloc[-1]["Daily P/L"]
+        gain = daily_pl
         prog = min(curr / pt if pt else 0, 1.0)
         pct_gain = (curr - sb) / sb * 100
 
@@ -147,26 +160,4 @@ for i, acct in enumerate(ACCOUNTS):
 
         st.subheader("Balance Over Time")
         fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
-        ax.set_facecolor('#333')
-        ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
-        ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
-        ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
-        ax.tick_params(colors='#39FF14')
-        for spine in ax.spines.values():
-            spine.set_color('#39FF14')
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        fig.autofmt_xdate()
-        ax.grid(False)
-        fig.tight_layout()
-        st.pyplot(fig, use_container_width=True)
-
-        st.subheader("Entries")
-        st.dataframe(
-            df_acc.style
-            .format({'Date': '{:%Y-%m-%d}', 'Daily P/L': '{:+.2f}', 'Balance': '{:,.2f}'})
-            .applymap(
-                lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055',
-                subset=['Daily P/L']
-            ),
-            use_container_width=True
-        )
+        ax.
