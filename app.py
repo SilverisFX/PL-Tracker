@@ -79,6 +79,8 @@ with st.sidebar:
             settings.get(f"last_date_{account}", str(date.today()))
         )
     )
+        )
+    )
     )
     daily_pl = st.number_input(
         "Today's P/L",
