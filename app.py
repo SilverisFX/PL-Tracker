@@ -15,10 +15,9 @@ ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Reset Handling ────────────────────────────────────
 if st.session_state.get("reset_triggered"):
-    st.cache_data.clear()
     st.session_state.clear()
     st.session_state["just_reset"] = True
-    st.experimental_rerun()
+    st.rerun()
 
 if st.session_state.get("just_reset"):
     st.info("✅ App reset successfully.")
