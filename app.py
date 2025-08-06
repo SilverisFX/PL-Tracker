@@ -148,7 +148,7 @@ sb = settings.get(f"start_balance_{account}", 1000.0)
 pt = settings.get(f"profit_target_{account}", 2000.0)
 
 # Calculate balance
-=df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
 curr = df_acc.iloc[-1]["Balance"]
 pct_gain = (curr - sb) / sb * 100
 prog = min(curr / pt if pt else 0, 1.0)
