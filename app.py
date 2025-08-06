@@ -86,6 +86,10 @@ with st.sidebar:
             if os.path.exists(file):
                 os.remove(file)
         st.cache_data.clear()
+        st.session_state["reset_triggered"] = True
+
+    if st.session_state.get("reset_triggered"):
+        st.session_state.clear()
         st.experimental_rerun()
 
 # ─── Tabs for Account Comparison ───────────────────────────────
