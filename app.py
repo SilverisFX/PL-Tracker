@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import date
 import pandas as pd
 import streamlit as st
@@ -8,7 +9,21 @@ import matplotlib.dates as mdates
 # ─── Page Config ────────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
 CSV_FILE = "tracker.csv"
+SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
+
+# ─── Settings Storage ─────────────────────────────────────────────────
+def load_settings() -> dict:
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_settings(settings: dict):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
+settings = load_settings()
 
 # ─── Load Data ────────────────────────────────────────────────────
 @st.cache_data
@@ -22,8 +37,8 @@ df_all = load_data(CSV_FILE)
 
 # ─── Session State Initialization ─────────────────────────────────────────
 for acct in ACCOUNTS:
-    st.session_state.setdefault(f"start_balance_{acct}", 1000.0)
-    st.session_state.setdefault(f"profit_target_{acct}", 2000.0)
+    st.session_state.setdefault(f"start_balance_{acct}", settings.get(f"start_balance_{acct}", 1000.0))
+    st.session_state.setdefault(f"profit_target_{acct}", settings.get(f"profit_target_{acct}", 2000.0))
 
 # ─── Sidebar Controls ─────────────────────────────────────────────
 st.sidebar.header("Account")
@@ -38,6 +53,11 @@ start_balance = st.sidebar.number_input("Starting Balance", value=st.session_sta
                                         step=100.0, format="%.2f", key=f"start_balance_{account}")
 profit_target = st.sidebar.number_input("Profit Target", value=st.session_state[f"profit_target_{account}"],
                                         step=100.0, format="%.2f", key=f"profit_target_{account}")
+
+# Update and save settings
+settings[f"start_balance_{account}"] = start_balance
+settings[f"profit_target_{account}"] = profit_target
+save_settings(settings)
 
 # ─── Add Entry ─────────────────────────────────────────────
 if st.sidebar.button("Add Entry"):
@@ -63,6 +83,8 @@ if st.sidebar.checkbox("Confirm reset all data"):
     if st.sidebar.button("Reset All Data"):
         if os.path.exists(CSV_FILE):
             os.remove(CSV_FILE)
+        if os.path.exists(SETTINGS_FILE):
+            os.remove(SETTINGS_FILE)
         df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
         for acct in ACCOUNTS:
             for key in (f"start_balance_{acct}", f"profit_target_{acct}"):
@@ -88,16 +110,13 @@ df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + start_balance
 today_delta = df_acc.iloc[-1]["Daily P/L"]
 current_balance = df_acc.iloc[-1]["Balance"]
 progress_pct = min(current_balance / profit_target if profit_target else 0, 1.0)
+pct_gain = ((current_balance - start_balance) / start_balance) * 100
 
 # ─── Metrics ─────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 col1.metric("Start", f"${start_balance:,.2f}")
-
-pct_gain = ((current_balance - start_balance) / start_balance) * 100
 col2.metric("Current", f"${current_balance:,.2f}", delta=f"{pct_gain:+.2f}%")
-
 col3.metric("Progress", f"{progress_pct * 100:.1f}%", delta=f"${current_balance - start_balance:+.2f}")
-
 
 # ─── Custom Animated Progress Bar ─────────────────────────────────────────────
 st.markdown(f"""
