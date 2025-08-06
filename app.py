@@ -281,4 +281,4 @@ styled_df = df_acc[["Date", "Daily P/L", "Balance"]] \
     .style \
     .applymap(color_pl, subset=["Daily P/L"]) \
     .format({"Date": lambda v: v.strftime('%Y-%m-%d'), "Daily P/L": '{:+.2f}', "Balance": '{:,.2f}'})
-st.dataframe(styled_df, use_container_width=True)(styled_df, use_container_width=True)
+st.dataframe(styled_df, use_container_width=True)
