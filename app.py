@@ -37,17 +37,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-st.markdown("""
-<style>
-@media (max-width: 768px) {
-  .css-1d391kg { width:100vw!important; left:0!important; }
-  .css-18e3th9 { padding:1rem!important; width:100vw!important; margin:0 auto!important; }
-}
-@media (max-width: 600px) {
-  .metric-container > div { width:100% !important; margin-bottom:0.75rem; }
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ─── Settings Storage ──────────────────────────────────────────
 def load_settings() -> dict:
@@ -168,7 +157,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 # Live clock and last updated stamp
-import time
 from datetime import datetime
 now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 st.markdown(f"**Last updated:** {now}")
@@ -192,11 +180,7 @@ for val in np.linspace(sb, curr_bal, steps):
     time.sleep(0.05)
 counter_placeholder.empty()
 
-# ─── Metrics (responsive) ─────────────────────────────────────
-st.markdown(
-    '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True
-)
-──────
+# ─── Metrics (responsive) ───────────────────────────────────────
 st.markdown(
     '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True
 )
@@ -206,48 +190,15 @@ c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
 c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ─── Animated Neon-Blue Progress Bar ───────────────────────────
-st.markdown(f"""
-<style>
-.progress-container {{
-    background-color: #222;
-    border-radius: 12px;
-    height: 25px;
-    width: 100%;
-    box-shadow: inset 0 0 4px #444;
-    margin-top: 10px;
-}}
-.progress-bar {{
-    height: 100%;
-    width: {prog_pct * 100:.1f}%;
-    background: #00FFFF;
-    border-radius: 12px;
-    box-shadow: 0 0 10px #00FFFF;
-    transition: width 1s ease-in-out;
-}}
-.progress-text {{
-    font-weight: bold;
-    text-align: right;
-    color: #39FF14;
-    padding-top: 5px;
-}}
-</style>
-
-<div class="progress-container">
-  <div class="progress-bar"></div>
-</div>
-<div class="progress-text">{prog_pct * 100:.1f}% to target</div>
-""", unsafe_allow_html=True)
-
-# ─── Date Range Zoom Buttons ────────────────────────────────────
+# ─── View Range Zoom Buttons ───────────────────────────────────
 st.subheader("View Range")
 col_w, col_m, col_a = st.columns(3)
-view = 'All'
-if col_w.button("1W"): view = '1W'
-elif col_m.button("1M"): view = '1M'
-elif col_a.button("All"): view = 'All'
+view = st.session_state.get('view','All')
+if col_w.button("1W"): view='1W'
+elif col_m.button("1M"): view='1M'
+elif col_a.button("All"): view='All'
+st.session_state['view']=view
 
-# apply date filter
 if view == '1W':
     start_date = date.today() - pd.Timedelta(days=7)
     df_plot = df_acc[df_acc['Date'] >= pd.to_datetime(start_date)]
@@ -257,15 +208,33 @@ elif view == '1M':
 else:
     df_plot = df_acc.copy()
 
-# ─── Interactive Balance Chart (Hover Tooltips) ────────────────────────
-st.subheader("Balance Over Time (Interactive)")
-import altair as alt
+# ─── Balance Chart with Gradient ────────────────────────────────
+st.subheader("Balance Over Time")
+fig, ax = plt.subplots(figsize=(10, 5))
+fig.patch.set_facecolor("#222222")
+ax.set_facecolor("#333333")
 
 neon_blue = "#00FFFF"
+ax.plot(df_plot["Date"], df_plot["Balance"], linewidth=2.5, color=neon_blue)
+ax.fill_between(df_plot["Date"], df_plot["Balance"], color=neon_blue, alpha=0.2)
+
 neon_text = "#39FF14"
+ax.set_title("Balance Progress", color=neon_text)
+ax.set_xlabel("Date", color=neon_text)
+ax.set_ylabel("Balance ($)", color=neon_text)
+ax.tick_params(colors=neon_text)
+for spine in ax.spines.values(): spine.set_color(neon_text)
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+fig.autofmt_xdate()
+ax.grid(False)
+st.pyplot(fig, use_container_width=True)
 
-df_plot = df_plot  # from zoom filter above
+if prog_pct >= 1.0:
+    st.balloons()
 
+# ─── Interactive Balance Chart (Hover Tooltips) ───────────────
+st.subheader("Balance Over Time (Interactive)")
+import altair as alt
 chart = alt.Chart(df_plot).mark_line(color=neon_blue, strokeWidth=3).encode(
     x=alt.X('Date:T', title='Date'),
     y=alt.Y('Balance:Q', title='Balance ($)'),
@@ -278,10 +247,9 @@ chart = alt.Chart(df_plot).mark_line(color=neon_blue, strokeWidth=3).encode(
 ).configure_title(
     color=neon_text
 ).interactive()
-
 st.altair_chart(chart, use_container_width=True)
 
-# ─── Animate Build on Demand ─────────────────────────────────────
+# ─── Animate Build on Demand ───────────────────────────────────
 st.subheader("Animate Balance Build")
 if st.button("Replay Build"):
     placeholder = st.empty()
@@ -299,22 +267,16 @@ if st.button("Replay Build"):
         time.sleep(0.05)
     placeholder.empty()
 
-# ─── Balance Sparkline ───────────────────────────────────────────
+# ─── Balance Sparkline ─────────────────────────────────────────
 st.subheader("Balance Sparkline")
 st.line_chart(df_acc.set_index('Date')['Balance'], use_container_width=True)
 
-# ─── Celebrate on Target Hit ─────────────────────────────────────
-if prog_pct >= 1.0:
-    st.balloons()
-
 # ─── Entries Table ─────────────────────────────────────────────
 st.subheader("Entries")
-
 # Conditional formatting: positive P/L green, negative red
 def color_pl(val):
     color = '#39FF14' if val >= 0 else '#FF0055'
     return f'color: {color}'
-
-styled_df = df_acc[["Date", "Daily P/L", "Balance"]].style.applymap(color_pl, subset=["Daily P/L"]).format({"Date": lambda v: v.strftime('%Y-%m-%d'), "Daily P/L": '{:+.2f}', "Balance": '{:,.2f}'})
-
+styled_df = df_acc[["Date", "Daily P/L", "Balance"]].style.applymap(color_pl, subset=["Daily P/L"]).
+    format({"Date": lambda v: v.strftime('%Y-%m-%d'), "Daily P/L": '{:+.2f}', "Balance": '{:,.2f}'})
 st.dataframe(styled_df, use_container_width=True)
