@@ -122,7 +122,9 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-    if st.button("Reset All Data"):
+        # ─── Reset All Data ───────────────────────────────────────────
+    confirm = st.checkbox("I understand this will delete ALL data permanently")
+    if confirm and st.button("Reset All Data"):
         # Remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
@@ -137,7 +139,7 @@ with st.sidebar:
                 del st.session_state[key]
         st.experimental_rerun()
 
-# ─── Main Header & Metrics & Metrics ─────────────────────────────────────
+# ─── Main Header & Metrics & Metrics & Metrics & Metrics ─────────────────────────────────────
 st.markdown(f"## Tracker: {account}")
 
 
