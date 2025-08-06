@@ -25,7 +25,6 @@ if st.session_state.get("just_reset"):
     del st.session_state["just_reset"]
 
 # ─── Settings Storage ───────────────────────────
-
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -53,7 +52,7 @@ for acct in ACCOUNTS:
 save_settings(settings)
 
 # ─── Data Loading ───────────────────────────
-
+@st.cache_data
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
         return pd.read_csv(CSV_FILE, parse_dates=["Date"], dtype={"Daily P/L": float}).dropna(subset=["Date"])
@@ -102,7 +101,6 @@ with st.sidebar:
             st.success("✅ Files removed. Reloading app...")
 
 # ─── Tabs for Account Comparison ──────────────────────────
-
 tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
 for i, acct in enumerate(ACCOUNTS):
     with tabs[i]:
@@ -142,10 +140,6 @@ for i, acct in enumerate(ACCOUNTS):
         """, unsafe_allow_html=True)
         st.write(f"{prog*100:.1f}% to target")
 
-        if len(df_acc) > 1:
-            start, end = st.date_input("Date Range", [df_acc["Date"].min(), df_acc["Date"].max()], key=f"range_{acct}")
-            df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
-
         st.subheader("Balance Over Time")
         fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
         ax.set_facecolor('#333')
@@ -158,6 +152,7 @@ for i, acct in enumerate(ACCOUNTS):
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate()
         ax.grid(False)
+        fig.tight_layout()
         st.pyplot(fig, use_container_width=True)
 
         st.subheader("Entries")
