@@ -4,8 +4,6 @@ from datetime import date
 import pandas as pd
 import numpy as np
 import streamlit as st
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import plotly.express as px
 
 # ─── Config ──────────────────────────────────────────────────
@@ -133,7 +131,6 @@ for i, acct in enumerate(ACCOUNTS):
         else:
             st.info("🧘‍♂️ Neutral day. Stay consistent.")
 
-        # Smart Insight
         if len(df_acc) >= 3:
             last_3 = df_acc.tail(3)["Daily P/L"].values
             if last_3[-1] < 0 and last_3[-2] > 0 and last_3[-3] > 0:
@@ -155,16 +152,17 @@ for i, acct in enumerate(ACCOUNTS):
             df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
 
         st.subheader("Balance Over Time (Zoomable)")
-        fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
-        fig.update_layout(
-            plot_bgcolor='#222',
-            paper_bgcolor='#222',
-            font_color='#39FF14',
-            xaxis_title='Date',
-            yaxis_title='Balance ($)',
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if not df_acc.empty and "Balance" in df_acc.columns:
+            fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
+            fig.update_layout(
+                plot_bgcolor='#222',
+                paper_bgcolor='#222',
+                font_color='#39FF14',
+                xaxis_title='Date',
+                yaxis_title='Balance ($)',
+                hovermode='x unified'
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Entries")
         st.dataframe(
