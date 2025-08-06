@@ -202,22 +202,31 @@ st.markdown(f"""
 <div class="progress-text">{pct * 100:.1f}% to target</div>
 """, unsafe_allow_html=True)
 
-# ─── Balance Chart ─────────────────────────────────────────────
+# ─── Balance Chart with Neon-Green Text ─────────────────────────
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(10, 5))
+# dark background
 fig.patch.set_facecolor("#222222")
 ax.set_facecolor("#333333")
+
+# balance line
 ax.plot(df_acc["Date"], df_acc["Balance"], marker='o', linewidth=2.5, color="#00FF00")
 ax.axhline(pt, linestyle="--", linewidth=2, color="#555555")
+
+# format dates
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 fig.autofmt_xdate()
-ax.set_title("Balance Progress", color="#DDDDDD")
-ax.set_xlabel("Date", color="#DDDDDD")
-ax.set_ylabel("Balance ($)", color="#DDDDDD")
-ax.tick_params(colors="#DDDDDD")
+
+# neon-bright green for all text & spines
+neon = "#39FF14"
+ax.set_title("Balance Progress", color=neon)
+ax.set_xlabel("Date", color=neon)
+ax.set_ylabel("Balance ($)", color=neon)
+ax.tick_params(colors=neon)
 ax.grid(False)
 for spine in ax.spines.values():
-    spine.set_color("#DDDDDD")
+    spine.set_color(neon)
+
 st.pyplot(fig, use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
