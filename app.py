@@ -57,23 +57,29 @@ if st.sidebar.button("Undo Last Entry"):
     else:
         st.sidebar.warning("Nothing to undo for this account.")
 
-# ─── Reset ───────────────────────────────────────────────────────────────────
-st.sidebar.subheader("Reset")
-st.sidebar.markdown("This will permanently clear all data and reset balances.")
+# ─── Reset All Data ──────────────────────────────────────────────────────────
+st.sidebar.subheader("🔁 Reset")
+st.sidebar.markdown("**This will permanently clear all data and reset all settings.**")
 
-if st.sidebar.button("Reset All Data"):
+if st.sidebar.button("🧨 Reset All Data"):
     if os.path.exists(CSV_FILE):
         os.remove(CSV_FILE)
     df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
     for acct in ACCOUNTS:
-        for key in (f"start_balance_{acct}", f"profit_target_{acct}"):
-            if key in st.session_state:
-                del st.session_state[key]
-    st.session_state["notification"] = "All data has been reset."
+        key_start = f"start_balance_{acct}"
+        key_target = f"profit_target_{acct}"
+        if key_start in st.session_state:
+            del st.session_state[key_start]
+        if key_target in st.session_state:
+            del st.session_state[key_target]
+    st.session_state['notification'] = "🧨 All data has been reset!"
+    
+    # ✅ Streamlit version-safe rerun
     if hasattr(st, "rerun"):
         st.rerun()
     else:
         st.experimental_rerun()
+
 
 # ─── Notification ────────────────────────────────────────────────────────────
 if st.session_state.get("notification"):
