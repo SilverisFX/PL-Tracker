@@ -123,7 +123,7 @@ with st.sidebar:
             st.warning("No entries to undo")
 
         # ─── Reset All Data ───────────────────────────────────────────
-    confirm = st.checkbox("I understand this will delete ALL data permanently")
+    confirm = st.checkbox("Comfirm")
     if confirm and st.button("Reset All Data"):
         # Remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
