@@ -4,11 +4,8 @@ from datetime import date
 import pandas as pd
 import numpy as np
 import streamlit as st
-try:
-    import plotly.express as px
-    plotly_available = True
-except ImportError:
-    plotly_available = False
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 # ─── Config ──────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
@@ -67,7 +64,6 @@ df_all = load_data()
 # ─── Sidebar Inputs ───────────────────────────
 with st.sidebar:
     st.header("📋 Account Entry")
-
     account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
     settings["last_account"] = account
 
@@ -135,11 +131,6 @@ for i, acct in enumerate(ACCOUNTS):
         else:
             st.info("🧘‍♂️ Neutral day. Stay consistent.")
 
-        if len(df_acc) >= 3:
-            last_3 = df_acc.tail(3)["Daily P/L"].values
-            if last_3[-1] < 0 and last_3[-2] > 0 and last_3[-3] > 0:
-                st.info("🤖 Tip: Two wins followed by a loss — consider taking partial profits next time.")
-
         st.subheader("Progress to Target")
         st.markdown(f"""
         <style>
@@ -155,35 +146,19 @@ for i, acct in enumerate(ACCOUNTS):
             start, end = st.date_input("Date Range", [df_acc["Date"].min(), df_acc["Date"].max()], key=f"range_{acct}")
             df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
 
-        if plotly_available:
-            st.subheader("Balance Over Time (Zoomable)")
-            if not df_acc.empty and "Balance" in df_acc.columns:
-                fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
-                fig.update_layout(
-                    plot_bgcolor='#222',
-                    paper_bgcolor='#222',
-                    font_color='#39FF14',
-                    xaxis_title='Date',
-                    yaxis_title='Balance ($)',
-                    hovermode='x unified'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.subheader("Balance Over Time")
-            import matplotlib.pyplot as plt
-            import matplotlib.dates as mdates
-            fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
-            ax.set_facecolor('#333')
-            ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
-            ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
-            ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
-            ax.tick_params(colors='#39FF14')
-            for spine in ax.spines.values():
-                spine.set_color('#39FF14')
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-            fig.autofmt_xdate()
-            ax.grid(False)
-            st.pyplot(fig, use_container_width=True)
+        st.subheader("Balance Over Time")
+        fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
+        ax.set_facecolor('#333')
+        ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
+        ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+        ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
+        ax.tick_params(colors='#39FF14')
+        for spine in ax.spines.values():
+            spine.set_color('#39FF14')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        fig.autofmt_xdate()
+        ax.grid(False)
+        st.pyplot(fig, use_container_width=True)
 
         st.subheader("Entries")
         st.dataframe(
