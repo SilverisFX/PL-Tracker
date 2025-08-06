@@ -66,10 +66,11 @@ with st.sidebar:
 
     # Reset the number input field after form submission
     if st.session_state.get("reset_input") == f"daily_pl_{account}":
-        st.session_state[f"daily_pl_{account}"] = 0.0
+        if f"daily_pl_{account}" in st.session_state:
+            st.session_state["reset_input"] = f"daily_pl_{account}"
+                st.rerun()
         del st.session_state["reset_input"]
         st.rerun()
-        del st.session_state["reset_input"]
     settings["last_account"] = account
 
     entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
