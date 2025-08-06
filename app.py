@@ -1,3 +1,18 @@
+import os
+import json
+from datetime import date, datetime, timedelta
+
+import pandas as pd
+import numpy as np
+import streamlit as st
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+# ─── Config ─────────────────────────────────────────────────────
+st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
+CSV_FILE = "tracker.csv"
+SETTINGS_FILE = "settings.json"
+ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
@@ -93,7 +108,7 @@ for i, acct in enumerate(ACCOUNTS):
         # Streak Tracker
         df_acc["Green"] = df_acc["Daily P/L"] > 0
         streak = df_acc["Green"][::-1].cumprod().sum()
-        
+
         # Metrics
         cols = st.columns(3)
         cols[0].metric("Start", f"${sb:,.2f}")
