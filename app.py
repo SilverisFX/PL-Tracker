@@ -4,7 +4,11 @@ from datetime import date
 import pandas as pd
 import numpy as np
 import streamlit as st
-import plotly.express as px
+try:
+    import plotly.express as px
+    plotly_available = True
+except ImportError:
+    plotly_available = False
 
 # ─── Config ──────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
@@ -151,18 +155,22 @@ for i, acct in enumerate(ACCOUNTS):
             start, end = st.date_input("Date Range", [df_acc["Date"].min(), df_acc["Date"].max()], key=f"range_{acct}")
             df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
 
-        st.subheader("Balance Over Time (Zoomable)")
-        if not df_acc.empty and "Balance" in df_acc.columns:
-            fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
-            fig.update_layout(
-                plot_bgcolor='#222',
-                paper_bgcolor='#222',
-                font_color='#39FF14',
-                xaxis_title='Date',
-                yaxis_title='Balance ($)',
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        if plotly_available:
+    st.subheader("Balance Over Time (Zoomable)")
+    if not df_acc.empty and "Balance" in df_acc.columns:
+        fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
+        fig.update_layout(
+            plot_bgcolor='#222',
+            paper_bgcolor='#222',
+            font_color='#39FF14',
+            xaxis_title='Date',
+            yaxis_title='Balance ($)',
+            hovermode='x unified'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+else:
+    st.subheader("Balance Over Time")
+    st.warning("Plotly is not installed. Run `pip install plotly` to enable the zoomable chart.")
 
         st.subheader("Entries")
         st.dataframe(
