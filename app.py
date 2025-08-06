@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 import time
-import altair as alt
 
 # ─── Config ─────────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
@@ -176,7 +175,7 @@ if choice=='1W': sd=date.today()-pd.Timedelta(7,unit='d'); df_plot=df_acc[df_acc
 elif choice=='1M': sd=date.today()-pd.Timedelta(30,unit='d'); df_plot=df_acc[df_acc['Date']>=sd]
 else: df_plot=df_acc.copy()
 
-# ─── Balance Chart with Gradient ──────────────────────────────── with Gradient ────────────────────────────────
+# ─── Balance Chart with Gradient ────────────────────────────────
 st.subheader("Balance Over Time")
 fig,ax=plt.subplots(figsize=(10,5)); fig.patch.set_facecolor('#222222'); ax.set_facecolor('#333333')
 neon_blue='#00FFFF'; neon_text='#39FF14'
@@ -185,12 +184,11 @@ ax.fill_between(df_plot['Date'],df_plot['Balance'],color=neon_blue,alpha=0.2)
 ax.set_title('Balance Progress',color=neon_text); ax.set_xlabel('Date',color=neon_text); ax.set_ylabel('Balance ($)',color=neon_text)
 ax.tick_params(colors=neon_text); [s.set_color(neon_text) for s in ax.spines.values()]
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d')); fig.autofmt_xdate(); ax.grid(False)
-st.pyplot(fig,use_container_width=True)
-if prog_pct>=1.0: st.balloons()
 
-('Date')['Balance'],use_container_width=True)
+st.pyplot(fig,use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
+```python
 st.subheader('Entries')
 
 def color_pl(val):
