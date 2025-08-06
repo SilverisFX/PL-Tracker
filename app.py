@@ -42,21 +42,27 @@ for acct in ACCOUNTS:
 
 # ─── Sidebar Controls ─────────────────────────────────────────────
 st.sidebar.header("Account")
-account = st.sidebar.selectbox("Select Account", ACCOUNTS)
+last_account = settings.get("last_account", ACCOUNTS[0])
+account = st.sidebar.selectbox("Select Account", ACCOUNTS, index=ACCOUNTS.index(last_account))
+settings["last_account"] = account
 
 st.sidebar.header("Data Entry")
-entry_date = st.sidebar.date_input("Date", value=date.today())
-daily_pl = st.sidebar.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
+entry_date = st.sidebar.date_input("Date", value=pd.to_datetime(settings.get("last_date", str(date.today()))))
+daily_pl = st.sidebar.number_input("Today's P/L", step=0.01, format="%.2f",
+                                   value=float(settings.get(f"last_pl_{account}", 0.0)),
+                                   key=f"daily_pl_{account}")
+settings["last_date"] = str(entry_date)
+settings[f"last_pl_{account}"] = daily_pl
 
 st.sidebar.header("Settings")
 start_balance = st.sidebar.number_input("Starting Balance", value=st.session_state[f"start_balance_{account}"],
                                         step=100.0, format="%.2f", key=f"start_balance_{account}")
 profit_target = st.sidebar.number_input("Profit Target", value=st.session_state[f"profit_target_{account}"],
                                         step=100.0, format="%.2f", key=f"profit_target_{account}")
-
-# Update and save settings
 settings[f"start_balance_{account}"] = start_balance
 settings[f"profit_target_{account}"] = profit_target
+
+# Save all settings
 save_settings(settings)
 
 # ─── Add Entry ─────────────────────────────────────────────
