@@ -76,11 +76,15 @@ with st.sidebar:
 
     save_settings(settings)
 
-    if st.button("➕ Add Entry"):
-        new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
-        df_all = pd.concat([df_all, new_row], ignore_index=True)
-        df_all.sort_values(["Account", "Date"], inplace=True)
-        df_all.to_csv(CSV_FILE, index=False)
+    with st.form(key=f"form_{account}"):
+            submitted = st.form_submit_button("➕ Add Entry")
+            if submitted:
+                new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
+                df_all = pd.concat([df_all, new_row], ignore_index=True)
+                df_all.sort_values(["Account", "Date"], inplace=True)
+                df_all.to_csv(CSV_FILE, index=False)
+                st.success(f"✅ Logged {daily_pl:+.2f} for {account}")
+                st.session_state[f"daily_pl_{account}"] = 0.0
 
     if st.button("↩️ Undo Last"):
         df_acc = df_all[df_all["Account"] == account]
