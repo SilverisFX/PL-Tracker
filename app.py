@@ -120,7 +120,6 @@ for i, acct in enumerate(ACCOUNTS):
         prog = min(curr / pt if pt else 0, 1.0)
         pct_gain = (curr - sb) / sb * 100
 
-        # Metrics (streak removed)
         cols = st.columns(2)
         cols[0].metric("Start", f"${sb:,.2f}")
         cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
@@ -131,10 +130,6 @@ for i, acct in enumerate(ACCOUNTS):
             st.warning("📉 Loss today. Review what went wrong.")
         else:
             st.info("🧘‍♂️ Neutral day. Stay consistent.")
-
-        if prog >= 1:
-            st.balloons()
-            st.success("🎉 Profit target reached!")
 
         st.subheader("Progress to Target")
         st.markdown(f"""
