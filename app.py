@@ -26,7 +26,6 @@ st.markdown("""
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
-    """Load settings from JSON or return defaults."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r") as f:
@@ -37,7 +36,6 @@ def load_settings() -> dict:
 
 
 def save_settings(settings: dict):
-    """Save settings to JSON."""
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2)
 
@@ -46,14 +44,12 @@ settings = load_settings()
 # ─── Data Loading ──────────────────────────────────────────────
 @st.cache_data
 def load_data() -> pd.DataFrame:
-    """Load CSV with proper dtypes, preserving decimals."""
     if os.path.exists(CSV_FILE):
-        df = pd.read_csv(
+        return pd.read_csv(
             CSV_FILE,
             parse_dates=["Date"],
             dtype={"Daily P/L": float}
         ).dropna(subset=["Date"])
-        return df
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
 # Load all entries
@@ -107,7 +103,7 @@ with st.sidebar:
 
     if st.button("Add Entry"):
         new_row = pd.DataFrame([
-            {"Account": account, "Date": entry_date, "Daily P/L": daily_pl}
+            {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
         ])
         df_all = pd.concat([df_all, new_row], ignore_index=True)
         df_all.sort_values(["Account", "Date"], inplace=True)
@@ -141,4 +137,39 @@ sb = settings[f"start_balance_{account}"]
 pt = settings[f"profit_target_{account}"]
 if df_acc.empty:
     df_acc = pd.DataFrame([
-        {"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/
+        {"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}
+    ])
+df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+curr = df_acc.iloc[-1]["Balance"]
+gain = df_acc.iloc[-1]["Daily P/L"]
+prog = min(curr / pt if pt else 0, 1.0)
+pct_gain = (curr - sb) / sb * 100
+
+cols = st.columns(3)
+cols[0].metric("Start", f"${sb:,.2f}")
+cols[1].metric("Current", f"${curr:,.2f}", delta=f"{gain:+.2f}")
+cols[2].metric("Progress", f"{prog*100:.1f}%", delta=f"{pct_gain:+.2f}%")
+
+# ─── Progress Bar ──────────────────────────────────────────────
+st.markdown(f"""
+<div style='background:#222;border-radius:12px;overflow:hidden;'>
+ <div style='width:{prog*100:.1f}%;height:25px;background:#00FFFF;transition:width 1s;'></div>
+</div>
+""", unsafe_allow_html=True)
+
+# ─── Balance Chart ─────────────────────────────────────────────
+st.subheader("Balance Over Time")
+fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
+ax.set_facecolor('#333')
+ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
+ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
+ax.tick_params(colors='#39FF14')
+for spine in ax.spines.values():
+    spine.set_color('#39FF14')
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+fig.autofmt_xdate()
+ax.grid(False)
+st.pyplot(fig, use_container_width=True)
+
+# ─── Entries Table ──────────────────────────
