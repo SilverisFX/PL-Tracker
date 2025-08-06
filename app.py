@@ -128,7 +128,7 @@ with st.sidebar:
 
 # ─── Main Header & Metrics ─────────────────────────────────────
 st.markdown(f"## Tracker: {account}")
-st.write(f"**Last updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
 
 # Prepare account data
 mask = df_all["Account"] == account
@@ -156,7 +156,6 @@ st.subheader("Progress to Target")
 st.progress(prog)
 
 # ─── Balance Chart ─────────────────────────────────────────────
-st.subheader("Balance Over Time")
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
 ax.set_facecolor('#333')
