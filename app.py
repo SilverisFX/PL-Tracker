@@ -96,33 +96,16 @@ with st.sidebar:
 
     save_settings(settings)
 
-    # — Replaced block: sum all today's entries —
-    today = date.today()
-    mask_today = (
-        (df_all["Account"] == account)
-        & (df_all["Date"].dt.date == today)
-    )
-    today_pl = df_all.loc[mask_today, "Daily P/L"].sum()
-
-    st.session_state[f"daily_pl_{account}"] = today_pl
-    settings[f"daily_pl_{account}"] = today_pl
-    save_settings(settings)
-
-    st.metric("🗖️ Today's P/L", f"{today_pl:+.2f}")
-    # — End replacement —
+    st.metric("🗖️ Today's P/L", f"{daily_pl:+.2f}")
 
     with st.form(key=f"form_{account}"):
         submitted = st.form_submit_button("➕ Add Entry")
         if submitted:
-            new_row = pd.DataFrame([{
-                "Account": account,
-                "Date": pd.to_datetime(entry_date),
-                "Daily P/L": today_pl
-            }])
+            new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
             df_all = pd.concat([df_all, new_row], ignore_index=True)
             df_all.sort_values(["Account", "Date"], inplace=True)
             df_all.to_csv(CSV_FILE, index=False)
-            st.success(f"✅ Logged {today_pl:+.2f} for {account}")
+            st.success(f"✅ Logged {daily_pl:+.2f} for {account}")
             st.session_state["reset_input"] = f"daily_pl_{account}"
             st.rerun()
 
@@ -157,15 +140,16 @@ for i, acct in enumerate(ACCOUNTS):
 
         df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
         curr = df_acc.iloc[-1]["Balance"]
-
-        # Calculate today's P/L for messaging
+                # Calculate today's P/L directly instead of using session_state
         today = date.today()
-        gain_df = df_acc[df_acc["Date"].dt.date == today]
-        gain = gain_df["Daily P/L"].sum()
+        daily_df = df_acc[df_acc["Date"].dt.date == today]
+        gain = daily_df["Daily P/L"].sum()
+        prog = min(curr / pt if pt else 0, 1.0)
+        pct_gain = (curr - sb) / sb * 100
 
         cols = st.columns(2)
         cols[0].metric("Start", f"${sb:,.2f}")
-        cols[1].metric("Current", f"${curr:,.2f}", delta=f"{(curr - sb)/sb*100:+.2f}%")
+        cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
 
         if gain > 0:
             st.success("📈 Great! You're in profit today. Keep up the momentum!")
@@ -173,6 +157,17 @@ for i, acct in enumerate(ACCOUNTS):
             st.warning("📉 Loss today. Review what went wrong.")
         else:
             st.info("🧘‍♂️ Neutral day. Stay consistent.")
+
+        st.subheader("Progress to Target")
+        st.markdown(f"""
+        <style>
+        @keyframes neon {{ 0% {{box-shadow: 0 0 5px #87CEFA;}} 50% {{box-shadow: 0 0 20px #87CEFA;}} 100% {{box-shadow: 0 0 5px #87CEFA;}} }}
+        .neon-bar {{ background: #87CEFA; height: 25px; width: {prog * 100:.1f}%; border-radius: 12px; animation: neon 2s infinite; }}
+        .bar-container {{ background: #222; border-radius: 12px; overflow: hidden; }}
+        </style>
+        <div class="bar-container"><div class="neon-bar"></div></div>
+        """, unsafe_allow_html=True)
+        st.write(f"{prog*100:.1f}% to target")
 
         st.subheader("Balance Over Time")
         fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
