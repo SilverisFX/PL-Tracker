@@ -1,7 +1,6 @@
 import os
 import json
-from datetime import date, datetime, timedelta
-
+from datetime import date
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -14,14 +13,16 @@ CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
-# ─── Safe Reset Early ────────────────────────────────────────────
-if "reset_triggered" in st.session_state:
-    st.session_state.clear()
+# ─── Reset Handling ─────────────────────────────────────────────
+if st.session_state.get("reset_triggered"):
     st.cache_data.clear()
-    del st.session_state["reset_triggered"]
+    st.session_state.clear()
+    st.session_state["just_reset"] = True  # persists after clear
     st.experimental_rerun()
-    st.stop()  # ← prevents continuing the broken rerun cycle
 
+if st.session_state.get("just_reset"):
+    st.info("✅ App reset successfully.")
+    del st.session_state["just_reset"]
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
