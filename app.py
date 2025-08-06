@@ -153,7 +153,31 @@ cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
 
 # Progress to Target Bar
 st.subheader("Progress to Target")
-st.progress(prog)
+st.markdown(f"""
+<style>
+@keyframes neon {
+  0% {box-shadow: 0 0 5px #87CEFA;}
+  50% {box-shadow: 0 0 20px #87CEFA;}
+  100% {box-shadow: 0 0 5px #87CEFA;}
+}
+.neon-bar {
+  background: #87CEFA;
+  height: 25px;
+  width: {prog * 100:.1f}%;
+  border-radius: 12px;
+  animation: neon 2s infinite;
+}
+.bar-container {
+  background: #222;
+  border-radius: 12px;
+  overflow: hidden;
+}
+</style>
+<div class="bar-container">
+  <div class="neon-bar"></div>
+</div>
+""", unsafe_allow_html=True)
+st.write(f"{prog*100:.1f}% to target")
 
 # ─── Balance Chart ─────────────────────────────────────────────
 st.subheader("Balance Over Time")
