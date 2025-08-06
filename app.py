@@ -1,8 +1,9 @@
 import os
 import json
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import pandas as pd
+import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -22,6 +23,11 @@ st.markdown("""
  .metric-container, .progress-container { position: sticky; top:0; background:#222; z-index:10; padding:1rem 0; }
 </style>
 """, unsafe_allow_html=True)
+
+# ─── Theme ──────────────────────────────────────────────────────
+theme = st.sidebar.radio("🎨 Theme", ["Dark", "Light"], index=0)
+if theme == "Light":
+    st.markdown("""<style>body { background-color: #fff; color: #000; }</style>""", unsafe_allow_html=True)
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
@@ -45,18 +51,133 @@ def load_data() -> pd.DataFrame:
         return pd.read_csv(CSV_FILE, parse_dates=["Date"], dtype={"Daily P/L": float}).dropna(subset=["Date"])
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
-if "df_all" not in st.session_state:
-    st.session_state.df_all = load_data()
+df_all = load_data()
 
-df_all = st.session_state.df_all
+# ─── Sidebar Inputs ────────────────────────────────────────────
+with st.sidebar:
+    st.header("📋 Account Entry")
+    account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
+    settings["last_account"] = account
 
-# ─── Sidebar ───────────────────────────────────────────────────
-st.sidebar.header("Account & Entry")
+    for acct in ACCOUNTS:
+        settings.setdefault(f"start_balance_{acct}", 1000.0)
+        settings.setdefault(f"profit_target_{acct}", 2000.0)
+        st.session_state.setdefault(f"daily_pl_{acct}", settings.get(f"daily_pl_{acct}", 0.0))
+        st.session_state.setdefault(f"last_date_{acct}", settings.get(f"last_date_{acct}", str(date.today())))
 
-account = st.sidebar.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
-settings["last_account"] = account
+    entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
+    daily_pl = st.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
+    settings[f"last_date_{account}"] = str(entry_date)
+    settings[f"daily_pl_{account}"] = daily_pl
 
-entry_date = st.sidebar.date_input("Date", value=pd.to_datetime(settings.get(f"last_date_{account}", date.today())))
-daily_pl = st.sidebar.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
+    sb = st.number_input("Starting Balance", value=settings[f"start_balance_{account}"], step=100.0, format="%.2f")
+    pt = st.number_input("Profit Target", value=settings[f"profit_target_{account}"], step=100.0, format="%.2f")
+    settings[f"start_balance_{account}"], settings[f"profit_target_{account}"] = sb, pt
 
-sb = st.sidebar.number
+    save_settings(settings)
+
+    if st.button("➕ Add Entry"):
+        new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
+        df_all = pd.concat([df_all, new_row], ignore_index=True)
+        df_all.sort_values(["Account", "Date"], inplace=True)
+        df_all.to_csv(CSV_FILE, index=False)
+
+    if st.button("↩️ Undo Last"):
+        df_acc = df_all[df_all["Account"] == account]
+        if not df_acc.empty:
+            last_idx = df_acc.index[-1]
+            df_all.drop(last_idx, inplace=True)
+            df_all.to_csv(CSV_FILE, index=False)
+        else:
+            st.warning("No entries to undo")
+
+    if st.checkbox("⚠️ Reset All Data") and st.button("Confirm Reset"):
+        for file in (CSV_FILE, SETTINGS_FILE):
+            if os.path.exists(file):
+                os.remove(file)
+        st.experimental_rerun()
+
+# ─── Tabs for Account Comparison ───────────────────────────────
+tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
+for i, acct in enumerate(ACCOUNTS):
+    with tabs[i]:
+        st.markdown(f"## Tracker: {acct}")
+        mask = df_all["Account"] == acct
+        df_acc = df_all[mask].copy().sort_values("Date")
+        sb = settings[f"start_balance_{acct}"]
+        pt = settings[f"profit_target_{acct}"]
+        if df_acc.empty:
+            df_acc = pd.DataFrame([{"Account": acct, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
+
+        df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+        curr = df_acc.iloc[-1]["Balance"]
+        gain = df_acc.iloc[-1]["Daily P/L"]
+        prog = min(curr / pt if pt else 0, 1.0)
+        pct_gain = (curr - sb) / sb * 100
+
+        # Streak Tracker
+        df_acc["Green"] = df_acc["Daily P/L"] > 0
+        streak = df_acc["Green"][::-1].cumprod().sum()
+        
+        # Metrics
+        cols = st.columns(3)
+        cols[0].metric("Start", f"${sb:,.2f}")
+        cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
+        cols[2].metric("Profit Streak", f"{int(streak)} day(s)")
+
+        # Smart Suggestions
+        if gain > 0:
+            st.success("📈 Great! You're in profit today. Keep up the momentum!")
+        elif gain < 0:
+            st.warning("📉 Loss today. Review what went wrong.")
+        else:
+            st.info("🧘‍♂️ Neutral day. Stay consistent.")
+
+        # Milestone celebration
+        if prog >= 1:
+            st.balloons()
+            st.success("🎉 Profit target reached!")
+
+        # Progress Bar
+        st.subheader("Progress to Target")
+        st.markdown(f"""
+        <style>
+        @keyframes neon {{ 0% {{box-shadow: 0 0 5px #87CEFA;}} 50% {{box-shadow: 0 0 20px #87CEFA;}} 100% {{box-shadow: 0 0 5px #87CEFA;}} }}
+        .neon-bar {{ background: #87CEFA; height: 25px; width: {prog * 100:.1f}%; border-radius: 12px; animation: neon 2s infinite; }}
+        .bar-container {{ background: #222; border-radius: 12px; overflow: hidden; }}
+        </style>
+        <div class="bar-container"><div class="neon-bar"></div></div>
+        """, unsafe_allow_html=True)
+        st.write(f"{prog*100:.1f}% to target")
+
+        # Date range filter
+        if len(df_acc) > 1:
+            start, end = st.date_input("Date Range", [df_acc["Date"].min(), df_acc["Date"].max()], key=f"range_{acct}")
+            df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
+
+        # Plot
+        st.subheader("Balance Over Time")
+        fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
+        ax.set_facecolor('#333')
+        ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
+        ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+        ax.set(title='Balance Progress', xlabel='Date', ylabel='Balance ($)')
+        ax.tick_params(colors='#39FF14')
+        for spine in ax.spines.values():
+            spine.set_color('#39FF14')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        fig.autofmt_xdate()
+        ax.grid(False)
+        st.pyplot(fig, use_container_width=True)
+
+        # Table
+        st.subheader("Entries")
+        st.dataframe(
+            df_acc.style
+                .format({'Date':'{:%Y-%m-%d}', 'Daily P/L':'{:+.2f}', 'Balance':'{:,.2f}'})
+                .applymap(
+                    lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055',
+                    subset=['Daily P/L']
+                ),
+            use_container_width=True
+        )
