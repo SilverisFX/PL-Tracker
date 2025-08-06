@@ -156,7 +156,48 @@ for val in np.linspace(sb,curr_bal,30): counter.metric("Balance",f"${val:,.2f}")
 counter.empty()
 
 # ─── Metrics (responsive) ───────────────────────────────────────
-st.markdown('<div class="metric-container" style="display:flex;gap:1rem;flex-wrap:wrap;">',unsafe_allow_html=True)
+st.markdown(
+    '<div class="metric-container" style="display:flex;gap:1rem;flex-wrap:wrap;">', unsafe_allow_html=True
+)
+c1, c2, c3 = st.columns([1,1,1])
+c1.metric("Start", f"${sb:,.2f}")
+c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
+c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ─── Animated Neon-Blue Progress Bar ─────────────────────────
+st.markdown(f"""
+<style>
+.progress-container {{
+    background-color: #222;
+    border-radius: 12px;
+    height: 25px;
+    width: 100%;
+    box-shadow: inset 0 0 4px #444;
+    margin-top: 10px;
+}}
+.progress-bar {{
+    height: 100%;
+    width: {prog_pct * 100:.1f}%;
+    background: #00FFFF;
+    border-radius: 12px;
+    box-shadow: 0 0 10px #00FFFF;
+    transition: width 1s ease-in-out;
+}}
+.progress-text {{
+    font-weight: bold;
+    text-align: right;
+    color: #39FF14;
+    padding-top: 5px;
+}}
+</style>
+
+<div class="progress-container">
+  <div class="progress-bar"></div>
+</div>
+<div class="progress-text">{prog_pct * 100:.1f}% to target</div>
+""", unsafe_allow_html=True)
+
 c1,c2,c3=st.columns([1,1,1])
 c1.metric("Start",f"${sb:,.2f}")
 c2.metric("Current",f"${curr_bal:,.2f}",delta=f"{pct_gain:+.2f}%")
@@ -175,6 +216,7 @@ elif choice=='1M': sd=date.today()-pd.Timedelta(30,unit='d'); df_plot=df_acc[df_
 else: df_plot=df_acc.copy()
 
 # ─── Balance Chart with Gradient ────────────────────────────────
+st.subheader("Balance Over Time")
 fig,ax=plt.subplots(figsize=(10,5)); fig.patch.set_facecolor('#222222'); ax.set_facecolor('#333333')
 neon_blue='#00FFFF'; neon_text='#39FF14'
 ax.plot(df_plot['Date'],df_plot['Balance'],linewidth=2.5,color=neon_blue)
@@ -189,19 +231,11 @@ if prog_pct>=1.0: st.balloons()
 chart=alt.Chart(df_plot).mark_line(color=neon_blue,strokeWidth=3).encode(x='Date:T',y='Balance:Q',tooltip=['Date','Balance']).properties(width='container',height=300).configure_axis(labelColor=neon_text,titleColor=neon_text).configure_title(color=neon_text).interactive()
 st.altair_chart(chart,use_container_width=True)
 
-# ─── Animate Build on Demand ───────────────────────────────────
-if st.button('Replay Build'):
-    ph=st.empty()
-    for i in range(1,len(df_plot)+1):
-        fig,ax=plt.subplots(figsize=(10,3)); fig.patch.set_facecolor('#222222'); ax.set_facecolor('#333333')
-        ax.plot(df_plot['Date'][:i],df_plot['Balance'][:i],color=neon_blue,linewidth=2.5)
-        ax.set_title('Building Balance...',color=neon_text)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d')); ax.tick_params(colors=neon_text)
-        [s.set_color(neon_text) for s in ax.spines.values()]; ax.grid(False)
-        ph.pyplot(fig,use_container_width=True); time.sleep(0.05)
-    ph.empty()
-
 # ─── Balance Sparkline ─────────────────────────────────────────
+st.line_chart(df_acc.set_index('Date')['Balance'],use_container_width=True)
+
+# ─── Entries Table ─────────────────────────────────────────────
+st.subheader('Entries') ─────────────────────────────────────────
 st.line_chart(df_acc.set_index('Date')['Balance'],use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
