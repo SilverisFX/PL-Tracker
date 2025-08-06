@@ -8,7 +8,7 @@ import matplotlib.dates as mdates
 
 # ─── Page Configuration ─────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="📊 Daily P/L Tracker",
+    page_title="🧮 Tracker",
     page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -16,59 +16,106 @@ st.set_page_config(
 
 CSV_FILE = "tracker.csv"
 
-# ─── Load or Initialize Data ─────────────────────────────────────────────────
+# ─── Load or Initialize All Data ─────────────────────────────────────────────
 if os.path.exists(CSV_FILE):
-    df = pd.read_csv(CSV_FILE, parse_dates=["Date"])
+    df_all = pd.read_csv(CSV_FILE, parse_dates=["Date"])
 else:
-    initial_balance = 1000.0
-    df = pd.DataFrame([
-        {"Date": date.today(), "Daily P/L": 0.0, "Balance": initial_balance}
-    ])
-    df.to_csv(CSV_FILE, index=False)
+    df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L", "Balance"])
+    df_all.to_csv(CSV_FILE, index=False)
 
-initial_balance = df.iloc[0]["Balance"]
-last_balance = df.iloc[-1]["Balance"]
+# ─── Sidebar: Account Selection ───────────────────────────────────────────────
+st.sidebar.header("👤 Account")
+account = st.sidebar.selectbox(
+    "Select Account",
+    options=["Account A", "Account B"],
+    help="Choose which account's P/L to log/view"
+)
 
-# ─── Sidebar: Data & Settings ────────────────────────────────────────────────
-st.sidebar.header("📂 Data")
+# ─── Sidebar: Data Entry ─────────────────────────────────────────────────────
+st.sidebar.header("📂 Data Entry")
 entry_date = st.sidebar.date_input(
-    "Date", value=date.today(), help="Select entry date"
+    "Date", value=date.today(), help="Select the date for this entry"
 )
 daily_pl = st.sidebar.number_input(
     "Today's P/L",
-    min_value=-float(last_balance),
+    min_value=-1e6,
     value=0.0,
     step=0.01,
     format="%.2f",
-    help="Enter profit (positive) or loss (negative)",
+    help="Enter profit (positive) or loss (negative)"
 )
 
+# ─── Sidebar: Settings ──────────────────────────────────────────────────────
 st.sidebar.header("⚙️ Settings")
+start_balance = st.sidebar.number_input(
+    "Starting Balance",
+    min_value=0.0,
+    value=1000.0,
+    step=100.0,
+    format="%.2f",
+    help="Initial balance when this account is first used"
+)
 target_balance = st.sidebar.number_input(
     "Target Balance",
     min_value=0.0,
-    value=initial_balance * 2,
+    value=2000.0,
     step=100.0,
     format="%.2f",
-    help="Set goal balance",
+    help="Your goal balance for this account"
 )
 
+# ─── Sidebar: Actions ────────────────────────────────────────────────────────
+st.sidebar.header("🛠️ Actions")
+if st.sidebar.button("🔴 Undo Last Entry"):
+    df_all = pd.read_csv(CSV_FILE, parse_dates=["Date"])
+    idxs = df_all[df_all["Account"] == account].index
+    if len(idxs) <= 1:
+        st.sidebar.warning("Nothing to undo for this account.")
+    else:
+        last_idx = idxs.max()
+        df_all = df_all.drop(last_idx).reset_index(drop=True)
+        df_all.to_csv(CSV_FILE, index=False)
+        st.sidebar.success(f"🔄 Removed last entry for {account}.")
+
+# ─── Filter for Current Account ──────────────────────────────────────────────
+df = df_all[df_all["Account"] == account].copy()
+if df.empty:
+    initial_balance = start_balance
+    init_row = pd.DataFrame([{
+        "Account": account,
+        "Date": entry_date,
+        "Daily P/L": 0.0,
+        "Balance": initial_balance
+    }])
+    df_all = pd.concat([df_all, init_row], ignore_index=True)
+    df = init_row.copy()
+    df_all.to_csv(CSV_FILE, index=False)
+else:
+    initial_balance = df.iloc[0]["Balance"]
+
+last_balance = df.iloc[-1]["Balance"]
+
+# ─── Add New Entry ──────────────────────────────────────────────────────────
 if st.sidebar.button("➕ Add Entry"):
     new_balance = last_balance + daily_pl
-    new_row = pd.DataFrame([
-        {"Date": entry_date, "Daily P/L": daily_pl, "Balance": new_balance}
-    ])
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(CSV_FILE, index=False)
+    new_entry = pd.DataFrame([{
+        "Account": account,
+        "Date": entry_date,
+        "Daily P/L": daily_pl,
+        "Balance": new_balance
+    }])
+    df_all = pd.concat([df_all, new_entry], ignore_index=True)
+    df = pd.concat([df, new_entry], ignore_index=True)
+    df_all.to_csv(CSV_FILE, index=False)
     st.sidebar.success(
-        f"✅ Logged {daily_pl:+.2f} on {entry_date}, new balance: ${new_balance:.2f}"
+        f"✅ Logged {daily_pl:+.2f} for {account} on {entry_date}, new balance: ${new_balance:.2f}"
     )
 
 # ─── Main Dashboard ──────────────────────────────────────────────────────────
-st.title("📈 Daily Profit/Loss Tracker")
+st.title(f"🧮 Tracker: {account}")
 
-# Metrics Row
-col1, col2, col3 = st.columns([2, 1, 2])
+# Metrics Row (even columns to avoid overlap)
+col1, col2, col3 = st.columns([2, 2, 2])
 col1.metric("🏁 Starting Balance", f"${initial_balance:,.2f}")
 col2.metric(
     "💹 Current Balance", f"${last_balance:,.2f}",
@@ -76,10 +123,10 @@ col2.metric(
 )
 progress_pct = min(last_balance / target_balance if target_balance else 0, 1.0)
 col3.metric(
-    "🎯 Progress", f"{progress_pct * 100:.1f}%", delta=f"{last_balance - initial_balance:+.2f}"
+    "📊 Progress", f"{progress_pct * 100:.1f}%", delta=f"{last_balance - initial_balance:+.2f}"
 )
 
-# Progress Bar
+# ─── Progress Bar ────────────────────────────────────────────────────────────
 st.progress(progress_pct)
 
 # ─── Balance Chart ──────────────────────────────────────────────────────────
@@ -106,19 +153,14 @@ ax.axhline(
     label="Target"
 )
 
-# Format dates
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 fig.autofmt_xdate()
 
-# Title & Labels
 ax.set_title("Account Balance Progress", fontsize=16, pad=15)
 ax.set_xlabel("Date", fontsize=12)
 ax.set_ylabel("Balance ($)", fontsize=12)
 
-# Subtle grid
 ax.grid(True, linestyle="--", linewidth=0.5, color="#d3d3d3")
-
-# Clean spines
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 
@@ -126,4 +168,4 @@ st.pyplot(fig, use_container_width=True)
 
 # ─── Data Table ─────────────────────────────────────────────────────────────
 st.subheader("Logged Entries")
-st.dataframe(df, use_container_width=True)
+st.dataframe(df.drop(columns=["Account"]), use_container_width=True)
