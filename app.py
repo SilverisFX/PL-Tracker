@@ -81,21 +81,22 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-  # ─── Safe Reset Logic ─────────────────────────────────────────────
+# ─── Safe Reset Trigger ─────────────────────────────────────────────
 if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
     if st.button("Confirm Reset"):
-        # Safely remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
                 os.remove(file)
 
-        # Clear session state and Streamlit cache
-        st.session_state.clear()
-        st.cache_data.clear()
+        st.session_state["reset_triggered"] = True
+        st.success("✅ Files removed. Reloading app shortly...")
 
-        # Notify and rerun cleanly
-        st.success("✅ All data has been reset. Reloading app...")
-        st.experimental_rerun()
+# ─── Rerun Safely on Next Cycle ────────────────────────────────────
+if st.session_state.get("reset_triggered"):
+    st.session_state.clear()
+    st.cache_data.clear()
+    st.experimental_rerun()
+
 
 
 # ─── Tabs for Account Comparison ───────────────────────────────
