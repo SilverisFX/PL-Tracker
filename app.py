@@ -15,10 +15,13 @@ SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Safe Reset Early ────────────────────────────────────────────
-if st.session_state.get("reset_triggered"):
+if "reset_triggered" in st.session_state:
     st.session_state.clear()
     st.cache_data.clear()
+    del st.session_state["reset_triggered"]
     st.experimental_rerun()
+    st.stop()  # ← prevents continuing the broken rerun cycle
+
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
