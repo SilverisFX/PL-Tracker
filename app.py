@@ -81,16 +81,22 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-    if st.checkbox("⚠️ Reset All Data") and st.button("Confirm Reset"):
+  # ─── Safe Reset Logic ─────────────────────────────────────────────
+if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
+    if st.button("Confirm Reset"):
+        # Safely remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
                 os.remove(file)
-        st.cache_data.clear()
-        st.session_state["reset_triggered"] = True
 
-    if st.session_state.get("reset_triggered"):
-        st.session_state.pop("reset_triggered")
+        # Clear session state and Streamlit cache
+        st.session_state.clear()
+        st.cache_data.clear()
+
+        # Notify and rerun cleanly
+        st.success("✅ All data has been reset. Reloading app...")
         st.experimental_rerun()
+
 
 # ─── Tabs for Account Comparison ───────────────────────────────
 tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
