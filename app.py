@@ -14,6 +14,12 @@ CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
+# ─── Safe Reset Early ────────────────────────────────────────────
+if st.session_state.get("reset_triggered"):
+    st.session_state.clear()
+    st.cache_data.clear()
+    st.experimental_rerun()
+
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
@@ -24,6 +30,9 @@ def load_settings() -> dict:
             return {}
     return {}
 
+def save_settings(settings: dict):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
 
 settings = load_settings()
 
@@ -78,22 +87,13 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-# ─── Safe Reset Trigger ─────────────────────────────────────────────
-if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
-    if st.button("Confirm Reset"):
-        for file in (CSV_FILE, SETTINGS_FILE):
-            if os.path.exists(file):
-                os.remove(file)
-        st.session_state["reset_triggered"] = True
-        st.success("✅ Files removed. Reloading app shortly...")
-
-# ─── Safe Rerun After Reset ─────────────────────────────────────────
-if st.session_state.get("reset_triggered"):
-    st.session_state.clear()
-    st.cache_data.clear()
-    st.experimental_rerun()
-
-
+    if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
+        if st.button("Confirm Reset"):
+            for file in (CSV_FILE, SETTINGS_FILE):
+                if os.path.exists(file):
+                    os.remove(file)
+            st.session_state["reset_triggered"] = True
+            st.success("✅ Files removed. Reloading app...")
 
 # ─── Tabs for Account Comparison ───────────────────────────────
 tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
@@ -155,7 +155,7 @@ for i, acct in enumerate(ACCOUNTS):
 
         # Plot
         st.subheader("Balance Over Time")
-        fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
+        fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
         ax.set_facecolor('#333')
         ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
         ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
@@ -172,10 +172,10 @@ for i, acct in enumerate(ACCOUNTS):
         st.subheader("Entries")
         st.dataframe(
             df_acc.style
-                .format({'Date':'{:%Y-%m-%d}', 'Daily P/L':'{:+.2f}', 'Balance':'{:,.2f}'})
-                .applymap(
-                    lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055',
-                    subset=['Daily P/L']
-                ),
+            .format({'Date': '{:%Y-%m-%d}', 'Daily P/L': '{:+.2f}', 'Balance': '{:,.2f}'})
+            .applymap(
+                lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055',
+                subset=['Daily P/L']
+            ),
             use_container_width=True
         )
