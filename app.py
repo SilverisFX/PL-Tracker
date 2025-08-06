@@ -165,38 +165,6 @@ c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
 c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# (Progress bar removed per request)own(f"""
-<style>
-.progress-container {{
-    background-color: #222;
-    border-radius: 12px;
-    height: 25px;
-    width: 100%;
-    box-shadow: inset 0 0 4px #444;
-    margin-top: 10px;
-}}
-.progress-bar {{
-    height: 100%;
-    width: {prog_pct * 100:.1f}%;
-    background: #00FFFF;
-    border-radius: 12px;
-    box-shadow: 0 0 10px #00FFFF;
-    transition: width 1s ease-in-out;
-}}
-.progress-text {{
-    font-weight: bold;
-    text-align: right;
-    color: #39FF14;
-    padding-top: 5px;
-}}
-</style>
-
-<div class="progress-container">
-  <div class="progress-bar"></div>
-</div>
-<div class="progress-text">{prog_pct * 100:.1f}% to target</div>
-""", unsafe_allow_html=True)
-
 # ─── View Range Zoom Buttons ───────────────────────────────────
 choice=st.session_state.get('view','All')
 w,m,a=st.columns(3)
@@ -208,7 +176,7 @@ if choice=='1W': sd=date.today()-pd.Timedelta(7,unit='d'); df_plot=df_acc[df_acc
 elif choice=='1M': sd=date.today()-pd.Timedelta(30,unit='d'); df_plot=df_acc[df_acc['Date']>=sd]
 else: df_plot=df_acc.copy()
 
-# ─── Balance Chart with Gradient ────────────────────────────────
+# ─── Balance Chart with Gradient ──────────────────────────────── with Gradient ────────────────────────────────
 st.subheader("Balance Over Time")
 fig,ax=plt.subplots(figsize=(10,5)); fig.patch.set_facecolor('#222222'); ax.set_facecolor('#333333')
 neon_blue='#00FFFF'; neon_text='#39FF14'
@@ -220,12 +188,7 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d')); fig.autofmt_xdate()
 st.pyplot(fig,use_container_width=True)
 if prog_pct>=1.0: st.balloons()
 
-# ─── Interactive Balance Chart (Hover Tooltips) ───────────────
-chart=alt.Chart(df_plot).mark_line(color=neon_blue,strokeWidth=3).encode(x='Date:T',y='Balance:Q',tooltip=['Date','Balance']).properties(width='container',height=300).configure_axis(labelColor=neon_text,titleColor=neon_text).configure_title(color=neon_text).interactive()
-st.altair_chart(chart,use_container_width=True)
-
-# ─── Balance Sparkline ─────────────────────────────────────────
-st.line_chart(df_acc.set_index('Date')['Balance'],use_container_width=True)
+('Date')['Balance'],use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
 st.subheader('Entries')
