@@ -7,13 +7,11 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-# ─── Config ──────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
 CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
-# ─── Reset Handling ────────────────────────────────────
 if st.session_state.get("reset_triggered"):
     st.session_state.clear()
     st.session_state["just_reset"] = True
@@ -23,7 +21,6 @@ if st.session_state.get("just_reset"):
     st.info("✅ App reset successfully.")
     del st.session_state["just_reset"]
 
-# ─── Settings Storage ───────────────────────────
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -39,7 +36,6 @@ def save_settings(settings: dict):
 
 settings = load_settings()
 
-# ─── Ensure Defaults ──────────────────────────
 for acct in ACCOUNTS:
     settings.setdefault(f"start_balance_{acct}", 1000.0)
     settings.setdefault(f"profit_target_{acct}", 2000.0)
@@ -50,7 +46,6 @@ for acct in ACCOUNTS:
 
 save_settings(settings)
 
-# ─── Data Loading ───────────────────────────
 @st.cache_data
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
@@ -59,18 +54,16 @@ def load_data() -> pd.DataFrame:
 
 df_all = load_data()
 
-# ─── Sidebar Inputs ───────────────────────────
 with st.sidebar:
     st.header("📋 Account Entry")
     account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
 
-    # Reset the number input field after form submission
     if st.session_state.get("reset_input") == f"daily_pl_{account}":
         if f"daily_pl_{account}" in st.session_state:
-            st.session_state["reset_input"] = f"daily_pl_{account}"
-                st.rerun()
+            st.session_state[f"daily_pl_{account}"] = 0.0
         del st.session_state["reset_input"]
         st.rerun()
+
     settings["last_account"] = account
 
     entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
@@ -85,14 +78,15 @@ with st.sidebar:
     save_settings(settings)
 
     with st.form(key=f"form_{account}"):
-            submitted = st.form_submit_button("➕ Add Entry")
-            if submitted:
-                new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
-                df_all = pd.concat([df_all, new_row], ignore_index=True)
-                df_all.sort_values(["Account", "Date"], inplace=True)
-                df_all.to_csv(CSV_FILE, index=False)
-                st.success(f"✅ Logged {daily_pl:+.2f} for {account}")
-                st.session_state[f"daily_pl_{account}"] = 0.0
+        submitted = st.form_submit_button("➕ Add Entry")
+        if submitted:
+            new_row = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}])
+            df_all = pd.concat([df_all, new_row], ignore_index=True)
+            df_all.sort_values(["Account", "Date"], inplace=True)
+            df_all.to_csv(CSV_FILE, index=False)
+            st.success(f"✅ Logged {daily_pl:+.2f} for {account}")
+            st.session_state["reset_input"] = f"daily_pl_{account}"
+            st.rerun()
 
     if st.button("↩️ Undo Last"):
         df_acc = df_all[df_all["Account"] == account]
@@ -111,7 +105,6 @@ with st.sidebar:
             st.session_state["reset_triggered"] = True
             st.success("✅ Files removed. Reloading app...")
 
-# ─── Tabs for Account Comparison ──────────────────────────
 tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
 for i, acct in enumerate(ACCOUNTS):
     with tabs[i]:
