@@ -235,11 +235,19 @@ st.altair_chart(chart,use_container_width=True)
 st.line_chart(df_acc.set_index('Date')['Balance'],use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
-st.subheader('Entries') ─────────────────────────────────────────
-st.line_chart(df_acc.set_index('Date')['Balance'],use_container_width=True)
-
-# ─── Entries Table ─────────────────────────────────────────────
 st.subheader('Entries')
-def color_pl(val): return f"color: {'#39FF14' if val>=0 else '#FF0055'}"
-styled=df_acc[['Date','Daily P/L','Balance']].style.applymap(color_pl,subset=['Daily P/L']).format({'Date':lambda v:v.strftime('%Y-%m-%d'),'Daily P/L':'{:+.2f}','Balance':'{:,.2f}'})
-st.dataframe(styled,use_container_width=True)
+
+def color_pl(val):
+    return f"color: {'#39FF14' if val >= 0 else '#FF0055'}"
+
+styled = (
+    df_acc[['Date', 'Daily P/L', 'Balance']]
+    .style
+    .applymap(color_pl, subset=['Daily P/L'])
+    .format({
+        'Date': lambda v: v.strftime('%Y-%m-%d'),
+        'Daily P/L': '{:+.2f}',
+        'Balance': '{:,.2f}'
+    })
+)
+st.dataframe(styled, use_container_width=True)
