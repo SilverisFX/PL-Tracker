@@ -83,8 +83,6 @@ with st.sidebar:
         key=f"daily_pl_{account}"
     )
     settings[f"last_date_{account}"] = str(entry_date)
-
-    st.header("Settings")
     sb = st.number_input(
         "Starting Balance",
         value=settings[f"start_balance_{account}"],
