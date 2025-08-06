@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
-st.set_page_config(page_title="🧮 Tracker", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
 CSV_FILE = "tracker.csv"
 ACCOUNTS = ["Account A", "Account B"]
 
@@ -20,12 +20,15 @@ def load_data(file_path: str) -> pd.DataFrame:
 
 df_all = load_data(CSV_FILE)
 
-# ─── Initialize Session State ────────────────────────────────────────────────
-for acct in ACCOUNTS:
-    st.session_state.setdefault(f"start_balance_{acct}", 1000.0)
-    st.session_state.setdefault(f"profit_target_{acct}", 2000.0)
+# ─── Session Defaults ────────────────────────────────────────────────────────
+DEFAULT_START_BALANCE = 1000.0
+DEFAULT_PROFIT_TARGET = 2000.0
 
-# ─── Sidebar Controls ────────────────────────────────────────────────────────
+for acct in ACCOUNTS:
+    st.session_state.setdefault(f"start_balance_{acct}", DEFAULT_START_BALANCE)
+    st.session_state.setdefault(f"profit_target_{acct}", DEFAULT_PROFIT_TARGET)
+
+# ─── Sidebar ─────────────────────────────────────────────────────────────────
 st.sidebar.header("Account")
 account = st.sidebar.selectbox("Select Account", ACCOUNTS)
 
@@ -33,12 +36,11 @@ st.sidebar.header("Data Entry")
 entry_date = st.sidebar.date_input("Date", value=date.today())
 daily_pl = st.sidebar.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
 
-# Show how many entries already exist for this date
+# Show number of entries for this date
 df_acc_existing = df_all[df_all["Account"] == account]
 entry_count = df_acc_existing["Date"].dt.date.eq(entry_date).sum()
 st.sidebar.caption(f"{entry_count} entries already exist for {entry_date}")
 
-# ─── Add / Undo Buttons ──────────────────────────────────────────────────────
 if st.sidebar.button("Add Entry"):
     new_row = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
     df_all = pd.concat([df_all, pd.DataFrame([new_row])], ignore_index=True).sort_values(["Account", "Date"])
@@ -55,55 +57,30 @@ if st.sidebar.button("Undo Last Entry"):
     else:
         st.sidebar.warning("Nothing to undo for this account.")
 
+# ─── Reset ───────────────────────────────────────────────────────────────────
+st.sidebar.subheader("Reset")
+st.sidebar.markdown("This will permanently clear all data and reset balances.")
 
-# ─── Add Entry ───────────────────────────────────────────────────────────────
-if st.sidebar.button("➕ Add Entry"):
-    new_row = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
-    df_all = pd.concat([df_all, pd.DataFrame([new_row])], ignore_index=True).sort_values(["Account", "Date"])
-    df_all.to_csv(CSV_FILE, index=False)
-    st.session_state['notification'] = f"✅ Logged {daily_pl:+.2f} for {account}"
-
-# ─── Undo Last Entry ─────────────────────────────────────────────────────────
-if st.sidebar.button("🔄 Undo"):
-    df_acc = df_all[df_all["Account"] == account]
-    if len(df_acc) > 0:
-        df_all = pd.concat([df_all[df_all["Account"] != account], df_acc.iloc[:-1]])
-        df_all = df_all.sort_values(["Account", "Date"])
-        df_all.to_csv(CSV_FILE, index=False)
-        st.sidebar.success(f"🔄 Last entry removed for {account}.")
-    else:
-        st.sidebar.warning("Nothing to undo for this account.")
-
-# ─── Reset All Data ──────────────────────────────────────────────────────────
-st.sidebar.subheader("🔁 Reset")
-st.sidebar.markdown("**This will permanently clear all data and reset all settings.**")
-
-if st.sidebar.button("🧨 Reset All Data"):
+if st.sidebar.button("Reset All Data"):
     if os.path.exists(CSV_FILE):
         os.remove(CSV_FILE)
     df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
     for acct in ACCOUNTS:
-        key_start = f"start_balance_{acct}"
-        key_target = f"profit_target_{acct}"
-        if key_start in st.session_state:
-            del st.session_state[key_start]
-        if key_target in st.session_state:
-            del st.session_state[key_target]
-    st.session_state['notification'] = "🧨 All data has been reset!"
-    
-    # ✅ Streamlit version-safe rerun
+        for key in (f"start_balance_{acct}", f"profit_target_{acct}"):
+            if key in st.session_state:
+                del st.session_state[key]
+    st.session_state["notification"] = "All data has been reset."
     if hasattr(st, "rerun"):
         st.rerun()
     else:
         st.experimental_rerun()
 
-    
 # ─── Notification ────────────────────────────────────────────────────────────
-if st.session_state.get('notification'):
-    st.info(st.session_state.pop('notification'), icon="🔔")
+if st.session_state.get("notification"):
+    st.info(st.session_state.pop("notification"))
 
 # ─── Header ──────────────────────────────────────────────────────────────────
-st.markdown(f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>🧮 Tracker: {account}</h2>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>Tracker: {account}</h2>", unsafe_allow_html=True)
 
 # ─── Prepare Data & Metrics ──────────────────────────────────────────────────
 df_acc = df_all[df_all["Account"] == account].copy()
@@ -111,16 +88,19 @@ if df_acc.empty:
     df_acc = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
 
 df_acc = df_acc.sort_values("Date")
+start_balance = st.session_state[f"start_balance_{account}"]
+profit_target = st.session_state[f"profit_target_{account}"]
 df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + start_balance
+
 today_delta = df_acc.iloc[-1]["Daily P/L"]
 current_balance = df_acc.iloc[-1]["Balance"]
 progress_pct = min(current_balance / profit_target if profit_target else 0, 1.0)
 
 # ─── Metrics ─────────────────────────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
-col1.metric("🏁 Start", f"${start_balance:,.2f}")
-col2.metric("💹 Current", f"${current_balance:,.2f}", delta=f"{today_delta:+.2f}")
-col3.metric("📊 Progress", f"{progress_pct * 100:.1f}%", delta=f"{current_balance - start_balance:+.2f}")
+col1.metric("Start", f"${start_balance:,.2f}")
+col2.metric("Current", f"${current_balance:,.2f}", delta=f"{today_delta:+.2f}")
+col3.metric("Progress", f"{progress_pct * 100:.1f}%", delta=f"{current_balance - start_balance:+.2f}")
 st.progress(progress_pct)
 
 # ─── Plot ────────────────────────────────────────────────────────────────────
