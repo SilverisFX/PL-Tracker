@@ -22,6 +22,7 @@ if os.path.exists(CSV_FILE):
 else:
     df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L", "Balance"])
     df_all.to_csv(CSV_FILE, index=False)
+df_all["Date"] = pd.to_datetime(df_all["Date"])
 
 # ─── Sidebar: Account Selection ───────────────────────────────────────────────
 st.sidebar.header("👤 Account")
@@ -45,8 +46,7 @@ daily_pl = st.sidebar.number_input(
     help="Enter profit (positive) or loss (negative)"
 )
 
-# ─── Sidebar: Settings ──────────────────────────────────────────────────────
-st.sidebar.header("⚙️ Settings")
+# ─── Sidebar: Settings Inputs ─────────────────────────────────────────────────
 start_balance = st.sidebar.number_input(
     "Starting Balance",
     min_value=0.0,
@@ -65,9 +65,9 @@ target_balance = st.sidebar.number_input(
 )
 
 # ─── Sidebar: Actions ────────────────────────────────────────────────────────
-st.sidebar.header("🛠️ Actions")
-if st.sidebar.button("🔴 Undo Last Entry"):
+if st.sidebar.button("Undo"):
     df_all = pd.read_csv(CSV_FILE, parse_dates=["Date"])
+    df_all["Date"] = pd.to_datetime(df_all["Date"])
     idxs = df_all[df_all["Account"] == account].index
     if len(idxs) <= 1:
         st.sidebar.warning("Nothing to undo for this account.")
@@ -92,7 +92,6 @@ if df.empty:
     df_all.to_csv(CSV_FILE, index=False)
 else:
     initial_balance = df.iloc[0]["Balance"]
-
 last_balance = df.iloc[-1]["Balance"]
 
 # ─── Add New Entry ──────────────────────────────────────────────────────────
@@ -104,6 +103,7 @@ if st.sidebar.button("➕ Add Entry"):
         "Daily P/L": daily_pl,
         "Balance": new_balance
     }])
+    new_entry["Date"] = pd.to_datetime(new_entry["Date"])
     df_all = pd.concat([df_all, new_entry], ignore_index=True)
     df = pd.concat([df, new_entry], ignore_index=True)
     df_all.to_csv(CSV_FILE, index=False)
@@ -111,10 +111,21 @@ if st.sidebar.button("➕ Add Entry"):
         f"✅ Logged {daily_pl:+.2f} for {account} on {entry_date}, new balance: ${new_balance:.2f}"
     )
 
-# ─── Main Dashboard ──────────────────────────────────────────────────────────
-st.title(f"🧮 Tracker: {account}")
+# ─── Main Dashboard & Notification ────────────────────────────────────────
+# Show notification if available
+if st.session_state.get('notification'):
+    # Display a temporary banner at top
+    st.info(st.session_state['notification'], icon="🔔")
+    # Clear after showing
+    st.session_state['notification'] = None
 
-# Metrics Row (even columns to avoid overlap)
+# Compact title for mobile
+st.markdown(
+    f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>🧮 Tracker: {account}</h2>",
+    unsafe_allow_html=True
+)
+
+# Metrics Row
 col1, col2, col3 = st.columns([2, 2, 2])
 col1.metric("🏁 Starting Balance", f"${initial_balance:,.2f}")
 col2.metric(
@@ -129,38 +140,46 @@ col3.metric(
 # ─── Progress Bar ────────────────────────────────────────────────────────────
 st.progress(progress_pct)
 
-# ─── Balance Chart ──────────────────────────────────────────────────────────
+# ─── Balance Chart with New Color Theme ──────────────────────────────────────
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(10, 5))
-fig.patch.set_facecolor("#eff2f7")  # bluish-grey background
-ax.set_facecolor("#ffffff")         # white plot background
+# Soft pastel theme
+fig.patch.set_facecolor("#fafafa")  # very light grey background
+ax.set_facecolor("#f5f5f5")          # light grey plot background
 
+# Pastel green line
 ax.plot(
     df["Date"],
     df["Balance"],
-    color="#0072B2",
+    color="#2ca02c",
     linewidth=2.5,
     marker="o",
     markersize=8,
     markerfacecolor="#ffffff",
-    markeredgecolor="#0072B2"
+    markeredgecolor="#2ca02c"
 )
+# Pastel magenta target
 ax.axhline(
     target_balance,
     linestyle="--",
     linewidth=2,
-    color="#D55E00",
+    color="#d62728",
     label="Target"
 )
 
+# Format dates
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 fig.autofmt_xdate()
 
-ax.set_title("Account Balance Progress", fontsize=16, pad=15)
+# Labels & style
+aq = ax.set_title("Account Balance Progress", fontsize=16, pad=15)
 ax.set_xlabel("Date", fontsize=12)
 ax.set_ylabel("Balance ($)", fontsize=12)
 
-ax.grid(True, linestyle="--", linewidth=0.5, color="#d3d3d3")
+# Soft gridlines
+ax.grid(True, linestyle="--", linewidth=0.5, color="#e0e0e0")
+
+# Clean spines
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 
