@@ -20,13 +20,10 @@ def load_settings() -> dict:
         try:
             with open(SETTINGS_FILE, "r") as f:
                 return json.load(f)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, FileNotFoundError):
             return {}
     return {}
 
-def save_settings(settings: dict):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
 
 settings = load_settings()
 
@@ -87,11 +84,10 @@ if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
                 os.remove(file)
-
         st.session_state["reset_triggered"] = True
         st.success("✅ Files removed. Reloading app shortly...")
 
-# ─── Rerun Safely on Next Cycle ────────────────────────────────────
+# ─── Safe Rerun After Reset ─────────────────────────────────────────
 if st.session_state.get("reset_triggered"):
     st.session_state.clear()
     st.cache_data.clear()
