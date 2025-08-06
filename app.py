@@ -174,14 +174,10 @@ now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 st.markdown(f"**Last updated:** {now}")
 
 # ─── Data Export Button ─────────────────────────────────────────
+csv_data = df_all.to_csv(index=False)
 st.download_button(
     label="Download CSV",
-    data=pd.concat([pd.DataFrame([{
-        'Account': r.Account,
-        'Date': r.Date.strftime('%Y-%m-%d'),
-        'Daily P/L': r['Daily P/L'],
-        'Balance': r.Balance
-    } for _, r in df_all.iterrows()]), pd.DataFrame()),
+    data=csv_data,
     file_name="tracker_export.csv",
     mime="text/csv"
 )
@@ -305,7 +301,7 @@ if st.button("Replay Build"):
 
 # ─── Balance Sparkline ───────────────────────────────────────────
 st.subheader("Balance Sparkline")
-st.line_chart(df_acc.set_index('Date')['Balance'])(fig, use_container_width=True)
+st.line_chart(df_acc.set_index('Date')['Balance'], use_container_width=True)
 
 # ─── Celebrate on Target Hit ─────────────────────────────────────
 if prog_pct >= 1.0:
