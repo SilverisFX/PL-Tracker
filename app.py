@@ -94,7 +94,39 @@ col1, col2, col3 = st.columns(3)
 col1.metric("Start", f"${start_balance:,.2f}")
 col2.metric("Current", f"${current_balance:,.2f}", delta=f"{today_delta:+.2f}")
 col3.metric("Progress", f"{progress_pct * 100:.1f}%", delta=f"{current_balance - start_balance:+.2f}")
-st.progress(progress_pct)
+
+# ─── Custom Animated Progress Bar ─────────────────────────────────────────────
+st.markdown(f"""
+<style>
+.progress-container {{
+    background-color: #222;
+    border-radius: 12px;
+    height: 25px;
+    width: 100%;
+    box-shadow: inset 0 0 4px #444;
+    margin-top: 10px;
+}}
+.progress-bar {{
+    height: 100%;
+    width: {progress_pct * 100:.1f}%;
+    background: linear-gradient(90deg, #00ccff, #3366ff);
+    border-radius: 12px;
+    box-shadow: 0 0 10px #00ccff;
+    transition: width 1s ease-in-out;
+}}
+.progress-text {{
+    font-weight: bold;
+    text-align: right;
+    color: #ccc;
+    padding-top: 5px;
+}}
+</style>
+
+<div class="progress-container">
+  <div class="progress-bar"></div>
+</div>
+<div class="progress-text">{progress_pct * 100:.1f}% to target</div>
+""", unsafe_allow_html=True)
 
 # ─── Plot ─────────────────────────────────────────────
 st.subheader("Balance Over Time")
