@@ -108,7 +108,6 @@ with st.sidebar:
         df_all = pd.concat([df_all, new_row], ignore_index=True)
         df_all.sort_values(["Account", "Date"], inplace=True)
         df_all.to_csv(CSV_FILE, index=False)
-        st.success(f"Logged {daily_pl:+.2f} for {account}")
 
     if st.button("Undo Last"):
         df_acc = df_all[df_all["Account"] == account]
@@ -116,7 +115,6 @@ with st.sidebar:
             last_idx = df_acc.index[-1]
             df_all.drop(last_idx, inplace=True)
             df_all.to_csv(CSV_FILE, index=False)
-            st.info("Last entry removed")
         else:
             st.warning("No entries to undo")
 
