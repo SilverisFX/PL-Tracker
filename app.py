@@ -140,7 +140,10 @@ for i, acct in enumerate(ACCOUNTS):
 
         df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
         curr = df_acc.iloc[-1]["Balance"]
-        gain = st.session_state[f"daily_pl_{acct}"]
+                # Calculate today's P/L directly instead of using session_state
+        today = date.today()
+        daily_df = df_acc[df_acc["Date"].dt.date == today]
+        gain = daily_df["Daily P/L"].sum()
         prog = min(curr / pt if pt else 0, 1.0)
         pct_gain = (curr - sb) / sb * 100
 
