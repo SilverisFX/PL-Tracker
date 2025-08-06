@@ -77,8 +77,12 @@ if st.sidebar.checkbox("Confirm reset all data"):
             if key_target in st.session_state:
                 del st.session_state[key_target]
         st.session_state['notification'] = "🧨 All data has been reset!"
-        st.experimental_rerun()
+        try:
+            st.rerun()
+        except AttributeError:
+            st.experimental_rerun()
 
+    
 # ─── Notification ────────────────────────────────────────────────────────────
 if st.session_state.get('notification'):
     st.info(st.session_state.pop('notification'), icon="🔔")
