@@ -18,11 +18,19 @@ CSV_FILE = "tracker.csv"
 
 # ─── Load or Initialize All Data ─────────────────────────────────────────────
 if os.path.exists(CSV_FILE):
-    df_all = pd.read_csv(CSV_FILE, parse_dates=["Date"])
+    df_all = pd.read_csv(
+        CSV_FILE,
+        parse_dates=["Date"],
+        infer_datetime_format=True,
+        dayfirst=False,
+        keep_default_na=True,
+    )
 else:
     df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L", "Balance"])
     df_all.to_csv(CSV_FILE, index=False)
-df_all["Date"] = pd.to_datetime(df_all["Date"])
+# Ensure Date is datetime (coerce errors to NaT)
+if not pd.api.types.is_datetime64_any_dtype(df_all["Date"]):
+    df_all["Date"] = pd.to_datetime(df_all["Date"], errors="coerce")
 
 # ─── Sidebar: Account Selection ───────────────────────────────────────────────
 st.sidebar.header("👤 Account")
@@ -66,16 +74,24 @@ target_balance = st.sidebar.number_input(
 
 # ─── Sidebar: Actions ────────────────────────────────────────────────────────
 if st.sidebar.button("Undo"):
-    df_all = pd.read_csv(CSV_FILE, parse_dates=["Date"])
-    df_all["Date"] = pd.to_datetime(df_all["Date"])
-    idxs = df_all[df_all["Account"] == account].index
+    df_temp = pd.read_csv(
+        CSV_FILE,
+        parse_dates=["Date"],
+        infer_datetime_format=True,
+        keep_default_na=True,
+    )
+    # Coerce Date
+    df_temp["Date"] = pd.to_datetime(df_temp["Date"], errors="coerce")
+    idxs = df_temp[df_temp["Account"] == account].index
     if len(idxs) <= 1:
         st.sidebar.warning("Nothing to undo for this account.")
     else:
         last_idx = idxs.max()
-        df_all = df_all.drop(last_idx).reset_index(drop=True)
-        df_all.to_csv(CSV_FILE, index=False)
+        df_temp = df_temp.drop(last_idx).reset_index(drop=True)
+        df_temp.to_csv(CSV_FILE, index=False)
         st.sidebar.success(f"🔄 Removed last entry for {account}.")
+        # Update in-memory df_all
+        df_all = df_temp.copy()
 
 # ─── Filter for Current Account ──────────────────────────────────────────────
 df = df_all[df_all["Account"] == account].copy()
@@ -103,20 +119,20 @@ if st.sidebar.button("➕ Add Entry"):
         "Daily P/L": daily_pl,
         "Balance": new_balance
     }])
-    new_entry["Date"] = pd.to_datetime(new_entry["Date"])
+    # Append and save
     df_all = pd.concat([df_all, new_entry], ignore_index=True)
     df = pd.concat([df, new_entry], ignore_index=True)
     df_all.to_csv(CSV_FILE, index=False)
+    # Set notification for top banner
+    st.session_state['notification'] = f"{daily_pl:+.2f} for {account}"
     st.sidebar.success(
-        f"✅ Logged {daily_pl:+.2f} for {account} on {entry_date}, new balance: ${new_balance:.2f}"
+        f"✅ Logged {daily_pl:+.2f} for {account} on {entry_date}, balance → ${new_balance:.2f}"
     )
 
 # ─── Main Dashboard & Notification ────────────────────────────────────────
-# Show notification if available
+# Show banner notification if set
 if st.session_state.get('notification'):
-    # Display a temporary banner at top
     st.info(st.session_state['notification'], icon="🔔")
-    # Clear after showing
     st.session_state['notification'] = None
 
 # Compact title for mobile
@@ -125,17 +141,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Metrics Row
+# ─── Metrics Row ────────────────────────────────────────────────────────────
 col1, col2, col3 = st.columns([2, 2, 2])
 col1.metric("🏁 Starting Balance", f"${initial_balance:,.2f}")
-col2.metric(
-    "💹 Current Balance", f"${last_balance:,.2f}",
-    delta=f"{daily_pl:+.2f}"
-)
+col2.metric("💹 Current Balance", f"${last_balance:,.2f}", delta=f"{daily_pl:+.2f}")
 progress_pct = min(last_balance / target_balance if target_balance else 0, 1.0)
-col3.metric(
-    "📊 Progress", f"{progress_pct * 100:.1f}%", delta=f"{last_balance - initial_balance:+.2f}"
-)
+col3.metric("📊 Progress", f"{progress_pct * 100:.1f}%", delta=f"{last_balance - initial_balance:+.2f}")
 
 # ─── Progress Bar ────────────────────────────────────────────────────────────
 st.progress(progress_pct)
@@ -143,46 +154,26 @@ st.progress(progress_pct)
 # ─── Balance Chart with New Color Theme ──────────────────────────────────────
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(10, 5))
-# Soft pastel theme
 fig.patch.set_facecolor("#fafafa")  # very light grey background
-ax.set_facecolor("#f5f5f5")          # light grey plot background
-
-# Pastel green line
+ax.set_facecolor("#f5f5f5")         # light grey plot background
 ax.plot(
-    df["Date"],
-    df["Balance"],
-    color="#2ca02c",
-    linewidth=2.5,
-    marker="o",
-    markersize=8,
-    markerfacecolor="#ffffff",
-    markeredgecolor="#2ca02c"
+    df["Date"], df["Balance"],
+    color="#2ca02c", linewidth=2.5,
+    marker="o", markersize=8,
+    markerfacecolor="#ffffff", markeredgecolor="#2ca02c"
 )
-# Pastel magenta target
 ax.axhline(
-    target_balance,
-    linestyle="--",
-    linewidth=2,
-    color="#d62728",
-    label="Target"
+    target_balance, linestyle="--", linewidth=2,
+    color="#d62728", label="Target"
 )
-
-# Format dates
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 fig.autofmt_xdate()
-
-# Labels & style
-aq = ax.set_title("Account Balance Progress", fontsize=16, pad=15)
+ax.set_title("Account Balance Progress", fontsize=16, pad=15)
 ax.set_xlabel("Date", fontsize=12)
 ax.set_ylabel("Balance ($)", fontsize=12)
-
-# Soft gridlines
 ax.grid(True, linestyle="--", linewidth=0.5, color="#e0e0e0")
-
-# Clean spines
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
-
 st.pyplot(fig, use_container_width=True)
 
 # ─── Data Table ─────────────────────────────────────────────────────────────
