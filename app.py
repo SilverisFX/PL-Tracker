@@ -44,8 +44,6 @@ for acct in ACCOUNTS:
     st.session_state.setdefault(f"daily_pl_{acct}", settings[f"daily_pl_{acct}"])
     st.session_state.setdefault(f"last_date_{acct}", settings[f"last_date_{acct}"])
 
-save_settings(settings)
-
 @st.cache_data
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
@@ -53,6 +51,26 @@ def load_data() -> pd.DataFrame:
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
 df_all = load_data()
+
+# Preprocess balances and daily P/L before rendering
+for acct in ACCOUNTS:
+    today = pd.to_datetime(datetime.now().date())
+    mask = df_all["Account"] == acct
+    df_acc = df_all[mask].copy().sort_values("Date")
+
+    if df_acc.empty:
+        df_acc = pd.DataFrame([{"Account": acct, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
+
+    df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + settings[f"start_balance_{acct}"]
+    daily_df = df_acc[pd.to_datetime(df_acc["Date"]).dt.date == today.date()]
+    daily_pl = daily_df["Daily P/L"].sum()
+
+    session_key = f"daily_pl_{acct}"
+    if session_key not in st.session_state:
+        st.session_state[session_key] = daily_pl
+    settings[session_key] = daily_pl
+
+save_settings(settings)
 
 with st.sidebar:
     st.header("📜 Account Entry")
@@ -116,22 +134,13 @@ for i, acct in enumerate(ACCOUNTS):
         df_acc = df_all[mask].copy().sort_values("Date")
         sb = settings[f"start_balance_{acct}"]
         pt = settings[f"profit_target_{acct}"]
+
         if df_acc.empty:
             df_acc = pd.DataFrame([{"Account": acct, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
 
         df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
-
-        today = pd.to_datetime(datetime.now().date())
-        daily_df = df_acc[pd.to_datetime(df_acc["Date"]).dt.date == today.date()]
-        daily_pl = daily_df["Daily P/L"].sum()
-
-        session_key = f"daily_pl_{acct}"
-        st.session_state[session_key] = daily_pl
-        settings[session_key] = daily_pl
-        save_settings(settings)
-
         curr = df_acc.iloc[-1]["Balance"]
-        gain = daily_pl
+        gain = st.session_state[f"daily_pl_{acct}"]
         prog = min(curr / pt if pt else 0, 1.0)
         pct_gain = (curr - sb) / sb * 100
 
