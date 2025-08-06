@@ -119,10 +119,19 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-    if st.checkbox("Reset All Data") and st.button("Confirm Reset"):
+    if st.button("Reset All Data"):
+        # Remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
                 os.remove(file)
+        # Clear in-memory data and settings
+        settings.clear()
+        df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
+        save_settings(settings)
+        # Clear session state entries
+        for key in list(st.session_state.keys()):
+            if key.startswith("daily_pl_") or key.startswith("last_date_") or key.startswith("start_balance_") or key.startswith("profit_target_") or key == "last_account":
+                del st.session_state[key]
         st.experimental_rerun()
 
 # ─── Main Header & Metrics ─────────────────────────────────────
