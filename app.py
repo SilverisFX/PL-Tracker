@@ -149,12 +149,13 @@ pct_gain = (curr - sb) / sb * 100
 # Metrics display
 cols = st.columns(3)
 cols[0].metric("Start", f"${sb:,.2f}")
-# Show both dollar and percent change under Current
 cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
-# Progress shows percent towards target
-cols[2].metric("Progress to Target", f"{prog*100:.1f}%")
 
-# ─── Progress Bar ──────────────────────────────────────────────
+# Progress toward target as bar
+st.subheader("Progress to Target")
+st.progress(prog)
+
+# ─── Progress Bar ───────────────────────────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style='background:#222;border-radius:12px;overflow:hidden;'>
  <div style='width:{prog*100:.1f}%;height:25px;background:#00FFFF;transition:width 1s;'></div>
