@@ -156,21 +156,21 @@ for i, acct in enumerate(ACCOUNTS):
             df_acc = df_acc[(df_acc['Date'] >= pd.to_datetime(start)) & (df_acc['Date'] <= pd.to_datetime(end))]
 
         if plotly_available:
-    st.subheader("Balance Over Time (Zoomable)")
-    if not df_acc.empty and "Balance" in df_acc.columns:
-        fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
-        fig.update_layout(
-            plot_bgcolor='#222',
-            paper_bgcolor='#222',
-            font_color='#39FF14',
-            xaxis_title='Date',
-            yaxis_title='Balance ($)',
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig, use_container_width=True)
-else:
-    st.subheader("Balance Over Time")
-    st.warning("Plotly is not installed. Run `pip install plotly` to enable the zoomable chart.")
+            st.subheader("Balance Over Time (Zoomable)")
+            if not df_acc.empty and "Balance" in df_acc.columns:
+                fig = px.line(df_acc, x='Date', y='Balance', title='Equity Curve', markers=True)
+                fig.update_layout(
+                    plot_bgcolor='#222',
+                    paper_bgcolor='#222',
+                    font_color='#39FF14',
+                    xaxis_title='Date',
+                    yaxis_title='Balance ($)',
+                    hovermode='x unified'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.subheader("Balance Over Time")
+            st.warning("Plotly is not installed. Run `pip install plotly` to enable the zoomable chart.")
 
         st.subheader("Entries")
         st.dataframe(
