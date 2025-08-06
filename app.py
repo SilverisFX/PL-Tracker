@@ -1,33 +1,3 @@
-import os
-import json
-from datetime import date, datetime, timedelta
-
-import pandas as pd
-import numpy as np
-import streamlit as st
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-
-# ─── Config ─────────────────────────────────────────────────────
-st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
-CSV_FILE = "tracker.csv"
-SETTINGS_FILE = "settings.json"
-ACCOUNTS = ["Account A", "Account B"]
-
-# ─── CSS ────────────────────────────────────────────────────────
-st.markdown("""
-<style>
- @media (max-width: 768px) {
-   .css-1d391kg, .css-18e3th9 { width:100vw!important; left:0!important; padding:1rem!important; }
- }
- .metric-container, .progress-container { position: sticky; top:0; background:#222; z-index:10; padding:1rem 0; }
-</style>
-""", unsafe_allow_html=True)
-
-# ─── Theme ──────────────────────────────────────────────────────
-theme = st.sidebar.radio("🎨 Theme", ["Dark", "Light"], index=0)
-if theme == "Light":
-    st.markdown("""<style>body { background-color: #fff; color: #000; }</style>""", unsafe_allow_html=True)
 
 # ─── Settings Storage ─────────────────────────────────────────
 def load_settings() -> dict:
