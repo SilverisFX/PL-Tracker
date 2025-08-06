@@ -63,6 +63,11 @@ df_all = load_data()
 with st.sidebar:
     st.header("📋 Account Entry")
     account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
+
+    # Reset the number input field after form submission
+    if st.session_state.get("reset_input") == f"daily_pl_{account}":
+        st.session_state[f"daily_pl_{account}"] = 0.0
+        del st.session_state["reset_input"]
     settings["last_account"] = account
 
     entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
@@ -84,7 +89,8 @@ with st.sidebar:
                 df_all.sort_values(["Account", "Date"], inplace=True)
                 df_all.to_csv(CSV_FILE, index=False)
                 st.success(f"✅ Logged {daily_pl:+.2f} for {account}")
-                st.session_state[f"daily_pl_{account}"] = 0.0
+                st.session_state["reset_input"] = f"daily_pl_{account}"
+                st.rerun()
 
     if st.button("↩️ Undo Last"):
         df_acc = df_all[df_all["Account"] == account]
