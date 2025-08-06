@@ -89,7 +89,7 @@ with st.sidebar:
         st.session_state["reset_triggered"] = True
 
     if st.session_state.get("reset_triggered"):
-        st.session_state.clear()
+        st.session_state.pop("reset_triggered")
         st.experimental_rerun()
 
 # ─── Tabs for Account Comparison ───────────────────────────────
