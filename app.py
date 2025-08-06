@@ -38,10 +38,16 @@ settings = load_settings()
 
 # ─── Data Loading ──────────────────────────────────────────────
 @st.cache_data
-def load_data():
+def load_data() -> pd.DataFrame:
+    """Load CSV with correct dtypes, preserving decimals."""
     if os.path.exists(CSV_FILE):
-        df = pd.read_csv(CSV_FILE, parse_dates=["Date"]).dropna(subset=["Date"])
+        df = pd.read_csv(
+            CSV_FILE,
+            parse_dates=["Date"],
+            dtype={"Daily P/L": float}
+        ).dropna(subset=["Date"])
         return df
+    return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
     return pd.DataFrame(columns=["Account","Date","Daily P/L"])
 
 df_all = load_data()
