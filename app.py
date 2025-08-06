@@ -1,4 +1,4 @@
-aimport os
+import os
 import json
 from datetime import date, datetime, timedelta
 
@@ -147,21 +147,16 @@ prog = min(curr / pt if pt else 0, 1.0)
 pct_gain = (curr - sb) / sb * 100
 
 # Metrics display
-cols = st.columns(3)
+cols = st.columns(2)
 cols[0].metric("Start", f"${sb:,.2f}")
-# Show both dollar and percent change under Current
 cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
-# Progress shows percent towards target
-cols[2].metric("Progress to Target", f"{prog*100:.1f}%")
 
-# ─── Progress Bar ──────────────────────────────────────────────
-st.markdown(f"""
-<div style='background:#222;border-radius:12px;overflow:hidden;'>
- <div style='width:{prog*100:.1f}%;height:25px;background:#00FFFF;transition:width 1s;'></div>
-</div>
-""", unsafe_allow_html=True)
+# Progress to Target Bar
+st.subheader("Progress to Target")
+st.progress(prog)
 
 # ─── Balance Chart ─────────────────────────────────────────────
+st.subheader("Balance Over Time")
 st.subheader("Balance Over Time")
 fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
 ax.set_facecolor('#333')
