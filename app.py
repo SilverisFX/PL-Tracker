@@ -26,23 +26,35 @@ for acct in ACCOUNTS:
     st.session_state.setdefault(f"profit_target_{acct}", 2000.0)
 
 # ─── Sidebar Controls ────────────────────────────────────────────────────────
-st.sidebar.header("👤 Account")
+st.sidebar.header("Account")
 account = st.sidebar.selectbox("Select Account", ACCOUNTS)
 
-st.sidebar.header("🗒️ Data Entry")
+st.sidebar.header("Data Entry")
 entry_date = st.sidebar.date_input("Date", value=date.today())
 daily_pl = st.sidebar.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
 
 # Show how many entries already exist for this date
 df_acc_existing = df_all[df_all["Account"] == account]
 entry_count = df_acc_existing["Date"].dt.date.eq(entry_date).sum()
-st.sidebar.caption(f"🔁 {entry_count} entries already exist for {entry_date}")
+st.sidebar.caption(f"{entry_count} entries already exist for {entry_date}")
 
-st.sidebar.header("⚙️ Settings")
-start_balance = st.sidebar.number_input("Starting Balance", value=st.session_state[f"start_balance_{account}"],
-                                        step=100.0, format="%.2f", key=f"start_balance_{account}")
-profit_target = st.sidebar.number_input("Profit Target", value=st.session_state[f"profit_target_{account}"],
-                                        step=100.0, format="%.2f", key=f"profit_target_{account}")
+# ─── Add / Undo Buttons ──────────────────────────────────────────────────────
+if st.sidebar.button("Add Entry"):
+    new_row = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
+    df_all = pd.concat([df_all, pd.DataFrame([new_row])], ignore_index=True).sort_values(["Account", "Date"])
+    df_all.to_csv(CSV_FILE, index=False)
+    st.session_state['notification'] = f"Logged {daily_pl:+.2f} for {account}"
+
+if st.sidebar.button("Undo Last Entry"):
+    df_acc = df_all[df_all["Account"] == account]
+    if len(df_acc) > 0:
+        df_all = pd.concat([df_all[df_all["Account"] != account], df_acc.iloc[:-1]])
+        df_all = df_all.sort_values(["Account", "Date"])
+        df_all.to_csv(CSV_FILE, index=False)
+        st.sidebar.success(f"Last entry removed for {account}.")
+    else:
+        st.sidebar.warning("Nothing to undo for this account.")
+
 
 # ─── Add Entry ───────────────────────────────────────────────────────────────
 if st.sidebar.button("➕ Add Entry"):
@@ -63,24 +75,27 @@ if st.sidebar.button("🔄 Undo"):
         st.sidebar.warning("Nothing to undo for this account.")
 
 # ─── Reset All Data ──────────────────────────────────────────────────────────
-st.sidebar.subheader("⚠️ Danger Zone")
-if st.sidebar.checkbox("Confirm reset all data"):
-    if st.sidebar.button("🧨 Reset All Data"):
-        if os.path.exists(CSV_FILE):
-            os.remove(CSV_FILE)
-        df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
-        for acct in ACCOUNTS:
-            key_start = f"start_balance_{acct}"
-            key_target = f"profit_target_{acct}"
-            if key_start in st.session_state:
-                del st.session_state[key_start]
-            if key_target in st.session_state:
-                del st.session_state[key_target]
-        st.session_state['notification'] = "🧨 All data has been reset!"
-        try:
-            st.rerun()
-        except AttributeError:
-            st.experimental_rerun()
+st.sidebar.subheader("🔁 Reset")
+st.sidebar.markdown("**This will permanently clear all data and reset all settings.**")
+
+if st.sidebar.button("🧨 Reset All Data"):
+    if os.path.exists(CSV_FILE):
+        os.remove(CSV_FILE)
+    df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
+    for acct in ACCOUNTS:
+        key_start = f"start_balance_{acct}"
+        key_target = f"profit_target_{acct}"
+        if key_start in st.session_state:
+            del st.session_state[key_start]
+        if key_target in st.session_state:
+            del st.session_state[key_target]
+    st.session_state['notification'] = "🧨 All data has been reset!"
+    
+    # ✅ Streamlit version-safe rerun
+    if hasattr(st, "rerun"):
+        st.rerun()
+    else:
+        st.experimental_rerun()
 
     
 # ─── Notification ────────────────────────────────────────────────────────────
