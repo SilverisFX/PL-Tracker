@@ -188,7 +188,7 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d')); fig.autofmt_xdate()
 st.pyplot(fig,use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
-```python
+# ─── Entries Table ─────────────────────────────────────────────
 st.subheader('Entries')
 
 def color_pl(val):
