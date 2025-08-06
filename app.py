@@ -59,8 +59,8 @@ df_all = load_data()
 for acct in ACCOUNTS:
     settings.setdefault(f"start_balance_{acct}", 1000.0)
     settings.setdefault(f"profit_target_{acct}", 2000.0)
-    st.session_state.setdefault(f"daily_pl_{acct}", 0.0)
-    st.session_state.setdefault(f"last_date_{acct}", str(date.today()))
+    st.session_state.setdefault(f"daily_pl_{acct}", settings.get(f"daily_pl_{acct}", 0.0))
+    st.session_state.setdefault(f"last_date_{acct}", settings.get(f"last_date_{acct}", str(date.today())))
 
 # ─── Sidebar Inputs ────────────────────────────────────────────
 with st.sidebar:
@@ -83,6 +83,8 @@ with st.sidebar:
         key=f"daily_pl_{account}"
     )
     settings[f"last_date_{account}"] = str(entry_date)
+    # persist today's P/L value
+    settings[f"daily_pl_{account}"] = daily_pl
     sb = st.number_input(
         "Starting Balance",
         value=settings[f"start_balance_{account}"],
