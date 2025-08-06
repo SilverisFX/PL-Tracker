@@ -45,6 +45,17 @@ def save_settings(settings: dict):
 
 settings = load_settings()
 
+# ─── Ensure Defaults ───────────────────────────────────────────
+for acct in ACCOUNTS:
+    settings.setdefault(f"start_balance_{acct}", 1000.0)
+    settings.setdefault(f"profit_target_{acct}", 2000.0)
+    settings.setdefault(f"last_date_{acct}", str(date.today()))
+    settings.setdefault(f"daily_pl_{acct}", 0.0)
+    st.session_state.setdefault(f"daily_pl_{acct}", settings[f"daily_pl_{acct}"])
+    st.session_state.setdefault(f"last_date_{acct}", settings[f"last_date_{acct}"])
+
+save_settings(settings)
+
 # ─── Data Loading ──────────────────────────────────────────────
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
@@ -58,12 +69,6 @@ with st.sidebar:
     st.header("📋 Account Entry")
     account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
     settings["last_account"] = account
-
-    for acct in ACCOUNTS:
-        settings.setdefault(f"start_balance_{acct}", 1000.0)
-        settings.setdefault(f"profit_target_{acct}", 2000.0)
-        st.session_state.setdefault(f"daily_pl_{acct}", settings.get(f"daily_pl_{acct}", 0.0))
-        st.session_state.setdefault(f"last_date_{acct}", settings.get(f"last_date_{acct}", str(date.today())))
 
     entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
     daily_pl = st.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
