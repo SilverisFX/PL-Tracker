@@ -92,8 +92,12 @@ progress_pct = min(current_balance / profit_target if profit_target else 0, 1.0)
 # ─── Metrics ─────────────────────────────────────────────
 col1, col2, col3 = st.columns(3)
 col1.metric("Start", f"${start_balance:,.2f}")
-col2.metric("Current", f"${current_balance:,.2f}", delta=f"{today_delta:+.2f}")
-col3.metric("Progress", f"{progress_pct * 100:.1f}%", delta=f"{current_balance - start_balance:+.2f}")
+
+pct_gain = ((current_balance - start_balance) / start_balance) * 100
+col2.metric("Current", f"${current_balance:,.2f}", delta=f"{pct_gain:+.2f}%")
+
+col3.metric("Progress", f"{progress_pct * 100:.1f}%", delta=f"${current_balance - start_balance:+.2f}")
+
 
 # ─── Custom Animated Progress Bar ─────────────────────────────────────────────
 st.markdown(f"""
