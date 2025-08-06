@@ -24,7 +24,7 @@ if 'profit_target' not in st.session_state:
     st.session_state['profit_target'] = 2000.0
 
 # ─── Data Loading with Caching ───────────────────────────────────────────────
-@st.experimental_memo(ttl=600)
+@st.cache_data(ttl=600)
 def load_data(file_path: str) -> pd.DataFrame:
     if os.path.exists(file_path):
         df = pd.read_csv(
@@ -37,6 +37,7 @@ def load_data(file_path: str) -> pd.DataFrame:
         df = pd.DataFrame(columns=["Account", "Date", "Daily P/L", "Balance"])
     return df
 
+# Load or initialize dataset
 df_all = load_data(CSV_FILE)
 
 # ─── Sidebar: Account & Data Entry ───────────────────────────────────────────
@@ -49,23 +50,37 @@ account = st.sidebar.selectbox(
 st.sidebar.header("🗒️ Data Entry")
 entry_date = st.sidebar.date_input("Date", value=date.today())
 daily_pl = st.sidebar.number_input(
-    "Today's P/L", value=0.0, step=0.01, format="%.2f", key='daily_pl'
+    "Today's P/L",
+    value=0.0,
+    step=0.01,
+    format="%.2f",
+    key='daily_pl'
 )
 
 # ─── Sidebar: Balance Settings ───────────────────────────────────────────────
 st.sidebar.header("⚙️ Balance Settings")
 start_balance = st.sidebar.number_input(
-    "Starting Balance", value=st.session_state['start_balance'], key='start_balance', step=100.0, format="%.2f"
+    "Starting Balance", 
+    value=st.session_state['start_balance'],
+    key='start_balance',
+    step=100.0,
+    format="%.2f"
 )
 profit_target = st.sidebar.number_input(
-    "Profit Target", value=st.session_state['profit_target'], key='profit_target', step=100.0, format="%.2f"
+    "Profit Target", 
+    value=st.session_state['profit_target'],
+    key='profit_target',
+    step=100.0,
+    format="%.2f"
 )
 
+# Assign target_balance from profit_target
 target_balance = profit_target
 
 # ─── Add Entry with Duplicate Check ──────────────────────────────────────────
 if st.sidebar.button("➕ Add Entry"):
     df_acc = df_all[df_all["Account"] == account]
+    # Prevent duplicate date entries
     if df_acc["Date"].eq(pd.to_datetime(entry_date)).any():
         st.sidebar.warning("An entry for that date already exists.")
     else:
@@ -114,6 +129,7 @@ if account_df.empty:
     ])
 account_df = account_df.sort_values("Date")
 
+# Compute metrics
 initial_balance = account_df.iloc[0]["Balance"]
 last_balance = account_df.iloc[-1]["Balance"]
 daily_delta = account_df.iloc[-1]["Daily P/L"]
@@ -150,9 +166,8 @@ def plot_balance(df: pd.DataFrame, target: float):
         spine.set_color('#DDDDDD')
     return fig
 
-# ─── Chart & Table ─────────────────────────────────────────────────────────
+# Render chart and table
 st.subheader("Balance Over Time")
 st.pyplot(plot_balance(account_df, target_balance), use_container_width=True)
-
 st.subheader("Entries")
 st.dataframe(account_df[["Date", "Daily P/L", "Balance"]], use_container_width=True)
