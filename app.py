@@ -15,6 +15,7 @@ st.set_page_config(
 )
 
 CSV_FILE = "tracker.csv"
+ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Load Data ──────────────────────────────────────────────────────────────
 def load_data(file_path: str) -> pd.DataFrame:
@@ -25,41 +26,49 @@ def load_data(file_path: str) -> pd.DataFrame:
         df = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
     return df
 
+# Load all entries
 df_all = load_data(CSV_FILE)
+
+# ─── Initialize Per-Account Settings ────────────────────────────────────────
+for acct in ACCOUNTS:
+    sb_key = f"start_balance_{acct}"
+    pt_key = f"profit_target_{acct}"
+    if sb_key not in st.session_state:
+        st.session_state[sb_key] = 1000.0
+    if pt_key not in st.session_state:
+        st.session_state[pt_key] = 2000.0
 
 # ─── Sidebar Controls ───────────────────────────────────────────────────────
 st.sidebar.header("👤 Account")
-account = st.sidebar.selectbox(
-    "Select Account", ["Account A", "Account B"]
-)
+account = st.sidebar.selectbox("Select Account", ACCOUNTS)
 
 st.sidebar.header("🗒️ Data Entry")
-entry_date = st.sidebar.date_input(
-    "Date", value=date.today()
-)
+entry_date = st.sidebar.date_input("Date", value=date.today())
+daily_pl_key = f"daily_pl_{account}"
 daily_pl = st.sidebar.number_input(
     "Today's P/L",
-    value=0.0,
     step=0.01,
     format="%.2f",
-    key='daily_pl'
+    key=daily_pl_key
 )
 
 st.sidebar.header("⚙️ Settings")
-# Use session_state.get to allow persistent, editable defaults
+# Per-account widget keys
+sb_key = f"start_balance_{account}"
+pt_key = f"profit_target_{account}"
 start_balance = st.sidebar.number_input(
     "Starting Balance",
-    value=st.session_state.get('start_balance', 1000.0),
+    value=st.session_state[sb_key],
     step=100.0,
     format="%.2f",
-    key='start_balance'
+    key=sb_key
 )
 profit_target = st.sidebar.number_input(
     "Profit Target",
-    value=st.session_state.get('profit_target', 2000.0),
+    value=st.session_state[pt_key],
     step=100.0,
     format="%.2f",
-    key='profit_target'
+    key=pt_key
 )
 
 # ─── Add Entry ─────────────────────────────────────────────────────────────
@@ -105,23 +114,19 @@ if df_acc.empty:
     ])
 df_acc = df_acc.sort_values("Date")
 
-# Compute running balance from editable start_balance
-start_bal = st.session_state['start_balance']
-df_acc['Balance'] = df_acc['Daily P/L'].cumsum() + start_bal
+# Compute running balance from per-account start_balance
+df_acc['Balance'] = df_acc['Daily P/L'].cumsum() + st.session_state[sb_key]
 
 # Compute metrics
 today_delta = df_acc.iloc[-1]['Daily P/L']
 current_balance = df_acc.iloc[-1]['Balance']
-progress_pct = min(
-    current_balance / st.session_state['profit_target'] if st.session_state['profit_target'] else 0,
-    1.0
-)
+progress_pct = min(current_balance / st.session_state[pt_key] if st.session_state[pt_key] else 0, 1.0)
 
 # ─── Metrics & Progress ─────────────────────────────────────────────────────
 col1, col2, col3 = st.columns([2, 2, 2])
-col1.metric("🏁 Start", f"${start_bal:,.2f}")
+col1.metric("🏁 Start", f"${st.session_state[sb_key]:,.2f}")
 col2.metric("💹 Current", f"${current_balance:,.2f}", delta=f"{today_delta:+.2f}")
-col3.metric("📊 Progress", f"{progress_pct*100:.1f}%", delta=f"{current_balance-start_bal:+.2f}")
+col3.metric("📊 Progress", f"{progress_pct*100:.1f}%", delta=f"{current_balance-st.session_state[sb_key]:+.2f}")
 st.progress(progress_pct)
 
 # ─── Plot ───────────────────────────────────────────────────────────────────
@@ -134,7 +139,7 @@ ax.plot(
     marker='o', linewidth=2.5, color="#00FF00"
 )
 ax.axhline(
-    st.session_state['profit_target'],
+    st.session_state[pt_key],
     linestyle='--', linewidth=2, color="#555555"
 )
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
@@ -144,8 +149,7 @@ ax.set_xlabel("Date", color="#DDDDDD")
 ax.set_ylabel("Balance ($)", color="#DDDDDD")
 ax.tick_params(colors="#DDDDDD")
 ax.grid(False)
-for spine in ax.spines.values():
-    spine.set_color('#DDDDDD')
+for spine in ax.spines.values(): spine.set_color('#DDDDDD')
 st.pyplot(fig, use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────────────────
