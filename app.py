@@ -6,18 +6,18 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-# ─── Page Config ───────────────────────────────────────────────
-st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
+# ─── Config ─────────────────────────────────────────────────────
+st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
 CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 MA_WINDOWS = [3, 5]  # days for moving average
 
-# ─── Responsive CSS ────────────────────────────────────────────
+# ─── Responsive CSS ─────────────────────────────────────────────
 st.markdown("""
 <style>
 @media (max-width: 768px) {
-  .css-1d391kg { width:100vw!important; position:relative!important; left:0!important; }
+  .css-1d391kg { width:100vw!important; left:0!important; }
   .css-18e3th9 { padding:1rem!important; width:100vw!important; margin:0 auto!important; }
 }
 @media (max-width: 600px) {
@@ -52,12 +52,12 @@ def load_data(fp: str) -> pd.DataFrame:
 
 df_all = load_data(CSV_FILE)
 
-# ─── Session State Initialization ──────────────────────────────
+# ─── Session State Init ────────────────────────────────────────
 for acct in ACCOUNTS:
     st.session_state.setdefault(f"start_balance_{acct}", settings.get(f"start_balance_{acct}", 1000.0))
     st.session_state.setdefault(f"profit_target_{acct}", settings.get(f"profit_target_{acct}", 2000.0))
 
-# ─── Sidebar Controls in Expanders ─────────────────────────────
+# ─── Sidebar: Account & Entry ──────────────────────────────────
 with st.sidebar.expander("🔄 Account & Entry", expanded=True):
     last_ac = settings.get("last_account", ACCOUNTS[0])
     account = st.selectbox("Select Account", ACCOUNTS, index=ACCOUNTS.index(last_ac))
@@ -71,42 +71,44 @@ with st.sidebar.expander("🔄 Account & Entry", expanded=True):
     key_pl = f"daily_pl_{account}"
     default_pl = float(settings.get(key_pl, 0.0))
     st.session_state.setdefault(key_pl, default_pl)
-    daily_pl = st.number_input("Today's P/L", step=0.01, format="%.2f",
-                               value=st.session_state[key_pl], key=key_pl)
-
-    # Quick-Add Buttons
-    cols = st.columns(4)
-    for i, amt in enumerate([10, -10, 50, -50]):
-        if cols[i].button(f"{amt:+}"):
-            st.session_state[key_pl] = round(st.session_state[key_pl] + amt, 2)
-            daily_pl = st.session_state[key_pl]
+    daily_pl = st.number_input(
+        "Today's P/L",
+        step=0.01,
+        format="%.2f",
+        value=st.session_state[key_pl],
+        key=key_pl
+    )
 
     settings[f"last_date_{account}"] = str(entry_date)
     settings[key_pl] = daily_pl
 
+# ─── Sidebar: Settings ─────────────────────────────────────────
 with st.sidebar.expander("⚙️ Settings", expanded=False):
-    sb_in = st.number_input(
+    sb_val = st.number_input(
         "Starting Balance",
         value=st.session_state[f"start_balance_{account}"],
-        step=100.0, format="%.2f"
+        step=100.0,
+        format="%.2f"
     )
-    pt_in = st.number_input(
+    pt_val = st.number_input(
         "Profit Target",
         value=st.session_state[f"profit_target_{account}"],
-        step=100.0, format="%.2f"
+        step=100.0,
+        format="%.2f"
     )
-    st.session_state[f"start_balance_{account}"] = sb_in
-    st.session_state[f"profit_target_{account}"] = pt_in
-    settings[f"start_balance_{account}"] = sb_in
-    settings[f"profit_target_{account}"] = pt_in
+    st.session_state[f"start_balance_{account}"] = sb_val
+    st.session_state[f"profit_target_{account}"] = pt_val
+    settings[f"start_balance_{account}"] = sb_val
+    settings[f"profit_target_{account}"] = pt_val
 
-# Persist settings
+# Save any changed settings
 save_settings(settings)
 
-# ─── Add / Undo / Reset Controls ──────────────────────────────
+# ─── Entry Controls ─────────────────────────────────────────────
 if st.sidebar.button("Add Entry"):
     new = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
-    df_all = pd.concat([df_all, pd.DataFrame([new])], ignore_index=True).sort_values(["Account", "Date"])
+    df_all = pd.concat([df_all, pd.DataFrame([new])], ignore_index=True)
+    df_all = df_all.sort_values(["Account", "Date"])
     df_all.to_csv(CSV_FILE, index=False)
     st.session_state["notification"] = f"✅ Logged {daily_pl:+.2f} for {account}"
     save_settings(settings)
@@ -124,10 +126,8 @@ if st.sidebar.button("Undo"):
 st.sidebar.subheader("Danger Zone")
 if st.sidebar.checkbox("Confirm reset all data"):
     if st.sidebar.button("Reset All Data"):
-        if os.path.exists(CSV_FILE):
-            os.remove(CSV_FILE)
-        if os.path.exists(SETTINGS_FILE):
-            os.remove(SETTINGS_FILE)
+        if os.path.exists(CSV_FILE): os.remove(CSV_FILE)
+        if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
         df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
         for a in ACCOUNTS:
             for k in (f"start_balance_{a}", f"profit_target_{a}"):
@@ -136,7 +136,7 @@ if st.sidebar.checkbox("Confirm reset all data"):
         save_settings(settings)
         st.rerun()
 
-# ─── Notification ─────────────────────────────────────────────
+# ─── Notifications ─────────────────────────────────────────────
 if st.session_state.get("notification"):
     st.info(st.session_state.pop("notification"), icon="🔔")
 
@@ -146,7 +146,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ─── Prepare Data & Metrics ────────────────────────────────────
+# ─── Prepare Metrics & Data ────────────────────────────────────
 sb = st.session_state[f"start_balance_{account}"]
 pt = st.session_state[f"profit_target_{account}"]
 df_acc = df_all[df_all["Account"] == account].copy()
@@ -155,39 +155,34 @@ if df_acc.empty:
 df_acc = df_acc.sort_values("Date")
 df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
 
-today_delta = df_acc.iloc[-1]["Daily P/L"]
 curr_bal = df_acc.iloc[-1]["Balance"]
-progress_pct = min(curr_bal / pt if pt else 0, 1.0)
 pct_gain = (curr_bal - sb) / sb * 100
+prog_pct = min(curr_bal / pt if pt else 0, 1.0)
 
 # ─── Metrics (responsive) ───────────────────────────────────────
 st.markdown(
-    '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">',
-    unsafe_allow_html=True
+    '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True
 )
 c1, c2, c3 = st.columns([1, 1, 1])
 c1.metric("Start", f"${sb:,.2f}")
 c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
-c3.metric("Progress", f"{progress_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
+c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${{curr_bal-sb}}:+.2f")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ─── Balance Chart with Moving Average ─────────────────────────
+# ─── Balance Chart + MA ────────────────────────────────────────
 st.subheader("Balance Over Time (+ Moving Average)")
-
-# Compute moving average
 ma_win = st.selectbox("Moving-Average Window (days)", MA_WINDOWS, index=0)
 df_acc["MA"] = df_acc["Balance"].rolling(window=ma_win, min_periods=1).mean()
 
-# Plot with Matplotlib
 fig, ax = plt.subplots(figsize=(10, 5))
 fig.patch.set_facecolor("#222222")
 ax.set_facecolor("#333333")
 
-# Balance and MA lines
+# Plot lines
 ax.plot(df_acc["Date"], df_acc["Balance"], marker='o', linewidth=2.5, color="#00FF00", label="Balance")
 ax.plot(df_acc["Date"], df_acc["MA"], linestyle='--', linewidth=2, color="#FFA500", label=f"{ma_win}-day MA")
 
-# Neon green text and spines
+# Neon styling
 neon = "#39FF14"
 ax.set_title("Balance Progress", color=neon)
 ax.set_xlabel("Date", color=neon)
@@ -195,12 +190,11 @@ ax.set_ylabel("Balance ($)", color=neon)
 ax.tick_params(colors=neon)
 for spine in ax.spines.values():
     spine.set_color(neon)
-# Legend in neon
 leg = ax.legend()
-for text in leg.get_texts():
-    text.set_color(neon)
+for txt in leg.get_texts():
+    txt.set_color(neon)
 
-# Date formatting and grid off
+# Date formatting
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
 fig.autofmt_xdate()
 ax.grid(False)
