@@ -86,7 +86,6 @@ with st.sidebar:
         key=f"daily_pl_{account}"
     )
     settings[f"last_date_{account}"] = str(entry_date)
-    # persist today's P/L value
     settings[f"daily_pl_{account}"] = daily_pl
 
     sb = st.number_input(
@@ -122,8 +121,8 @@ with st.sidebar:
         else:
             st.warning("No entries to undo")
 
-        # ─── Reset All Data ───────────────────────────────────────────
-    confirm = st.checkbox("Comfirm")
+    # ─── Reset All Data ───────────────────────────────────────────
+    confirm = st.checkbox("I understand this will delete ALL data permanently")
     if confirm and st.button("Reset All Data"):
         # Remove CSV and settings files
         for file in (CSV_FILE, SETTINGS_FILE):
@@ -139,7 +138,7 @@ with st.sidebar:
                 del st.session_state[key]
         st.experimental_rerun()
 
-# ─── Main Header & Metrics & Metrics & Metrics & Metrics ─────────────────────────────────────
+# ─── Main Header & Metrics & Metrics & Metrics & Metrics & Metrics ─────────────────────────────────────
 st.markdown(f"## Tracker: {account}")
 
 
