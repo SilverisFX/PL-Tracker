@@ -139,16 +139,20 @@ if df_acc.empty:
     df_acc = pd.DataFrame([
         {"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}
     ])
+# Calculate balance
 df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
 curr = df_acc.iloc[-1]["Balance"]
 gain = df_acc.iloc[-1]["Daily P/L"]
 prog = min(curr / pt if pt else 0, 1.0)
 pct_gain = (curr - sb) / sb * 100
 
+# Metrics display
 cols = st.columns(3)
 cols[0].metric("Start", f"${sb:,.2f}")
-cols[1].metric("Current", f"${curr:,.2f}", delta=f"{gain:+.2f}")
-cols[2].metric("Progress", f"{prog*100:.1f}%", delta=f"{pct_gain:+.2f}%")
+# Show both dollar and percent change under Current
+cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
+# Progress shows percent towards target
+cols[2].metric("Progress to Target", f"{prog*100:.1f}%")
 
 # ─── Progress Bar ──────────────────────────────────────────────
 st.markdown(f"""
@@ -172,4 +176,14 @@ fig.autofmt_xdate()
 ax.grid(False)
 st.pyplot(fig, use_container_width=True)
 
-# ─── Entries Table ──────────────────────────
+# ─── Entries Table ─────────────────────────────────────────────
+st.subheader('Entries')
+st.dataframe(
+    df_acc.style
+        .format({'Date':'{:%Y-%m-%d}', 'Daily P/L':'{:+.2f}', 'Balance':'{:,.2f}'})
+        .applymap(
+            lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055',
+            subset=['Daily P/L']
+        ),
+    use_container_width=True
+)
