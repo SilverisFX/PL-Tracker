@@ -85,6 +85,7 @@ with st.sidebar:
         for file in (CSV_FILE, SETTINGS_FILE):
             if os.path.exists(file):
                 os.remove(file)
+        st.cache_data.clear()
         st.experimental_rerun()
 
 # ─── Tabs for Account Comparison ───────────────────────────────
