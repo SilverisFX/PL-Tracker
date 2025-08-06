@@ -67,7 +67,8 @@ with st.sidebar:
     settings["last_account"] = account
 
     entry_date = st.date_input("Date", value=pd.to_datetime(settings[f"last_date_{account}"]))
-    daily_pl = st.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
+    st.number_input("Today's P/L", step=0.01, format="%.2f", key=f"daily_pl_{account}")
+    daily_pl = st.session_state[f"daily_pl_{account}"]
     settings[f"last_date_{account}"] = str(entry_date)
     settings[f"daily_pl_{account}"] = daily_pl
 
