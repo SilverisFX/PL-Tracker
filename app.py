@@ -55,7 +55,7 @@ def load_data() -> pd.DataFrame:
 df_all = load_data()
 
 with st.sidebar:
-    st.header("📋 Account Entry")
+    st.header("📜 Account Entry")
     account = st.selectbox("Account", ACCOUNTS, index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0])))
 
     if st.session_state.get("reset_input") == f"daily_pl_{account}":
@@ -78,7 +78,7 @@ with st.sidebar:
 
     save_settings(settings)
 
-    st.metric("📆 Today's P/L", f"{daily_pl:+.2f}")
+    st.metric("🗖️ Today's P/L", f"{daily_pl:+.2f}")
 
     with st.form(key=f"form_{account}"):
         submitted = st.form_submit_button("➕ Add Entry")
@@ -121,7 +121,6 @@ for i, acct in enumerate(ACCOUNTS):
 
         df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
 
-        # 🧠 Patch: Dynamic today's P/L
         today = pd.to_datetime(datetime.now().date())
         daily_df = df_acc[pd.to_datetime(df_acc["Date"]).dt.date == today.date()]
         daily_pl = daily_df["Daily P/L"].sum()
@@ -160,4 +159,13 @@ for i, acct in enumerate(ACCOUNTS):
 
         st.subheader("Balance Over Time")
         fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
-        ax.
+        fig.patch.set_facecolor('#222')
+        ax.plot(df_acc["Date"], df_acc["Balance"], color='lime', linewidth=2)
+        ax.set_facecolor('#111')
+        ax.grid(False)
+        ax.tick_params(colors='lightgrey')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        fig.autofmt_xdate()
+        ax.set_ylabel("Balance", color='lightgrey')
+        ax.set_title("Balance Over Time", color='lightgrey')
+        st.pyplot(fig)
