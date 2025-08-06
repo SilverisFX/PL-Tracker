@@ -12,7 +12,31 @@ CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
-# ─── Responsive CSS ─────────────────────────────────────────────
+# ─── Responsive CSS & Patterns ──────────────────────────────────
+st.markdown("""
+<style>
+@media (max-width: 768px) {
+  .css-1d391kg { width:100vw!important; left:0!important; }
+  .css-18e3th9 { padding:1rem!important; width:100vw!important; margin:0 auto!important; }
+}
+@media (max-width: 600px) {
+  .metric-container > div { width:100% !important; margin-bottom:0.75rem; }
+}
+/* Subtle diagonal background pattern */
+.css-18e3th9 {
+  background-image: linear-gradient(135deg, rgba(0,0,0,0.1) 25%, transparent 25%, transparent 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1) 75%, transparent 75%, transparent);
+  background-size: 20px 20px;
+}
+/* Sticky header for metrics and progress bar */
+.metric-container, .progress-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #222222;
+  padding-top: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
 st.markdown("""
 <style>
 @media (max-width: 768px) {
@@ -138,26 +162,45 @@ if st.sidebar.checkbox("Confirm reset all data"):
 if st.session_state.get("notification"):
     st.info(st.session_state.pop("notification"), icon="🔔")
 
-# ─── Header ───────────────────────────────────────────────────
+# ─── Header with Clock ─────────────────────────────────────────
 st.markdown(
-    f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>Tracker: {account}</h2>",
+    f"<h2 style='font-size:1.5rem; margin-bottom:0.2rem;'>Tracker: {account}</h2>",
     unsafe_allow_html=True
 )
+# Live clock and last updated stamp
+import time
+from datetime import datetime
+now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+st.markdown(f"**Last updated:** {now}")
 
-# ─── Prepare Metrics & Data ────────────────────────────────────
-sb = st.session_state[f"start_balance_{account}"]
-pt = st.session_state[f"profit_target_{account}"]
-df_acc = df_all[df_all["Account"] == account].copy()
-if df_acc.empty:
-    df_acc = pd.DataFrame([{"Account": account, "Date": pd.to_datetime(date.today()), "Daily P/L": 0.0}])
-df_acc = df_acc.sort_values("Date")
-df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+# ─── Data Export Button ─────────────────────────────────────────
+st.download_button(
+    label="Download CSV",
+    data=pd.concat([pd.DataFrame([{
+        'Account': r.Account,
+        'Date': r.Date.strftime('%Y-%m-%d'),
+        'Daily P/L': r['Daily P/L'],
+        'Balance': r.Balance
+    } for _, r in df_all.iterrows()]), pd.DataFrame()),
+    file_name="tracker_export.csv",
+    mime="text/csv"
+)
 
-curr_bal = df_acc.iloc[-1]["Balance"]
-pct_gain = (curr_bal - sb) / sb * 100
-prog_pct = min(curr_bal / pt if pt else 0, 1.0)
+# ─── Animated Y-Axis Counter ──────────────────────────────────
+import time
+import numpy as np
+counter_placeholder = st.empty()
+steps = 30
+for val in np.linspace(sb, curr_bal, steps):
+    counter_placeholder.metric("Balance", f"${val:,.2f}")
+    time.sleep(0.05)
+counter_placeholder.empty()
 
-# ─── Metrics (responsive) ───────────────────────────────────────
+# ─── Metrics (responsive) ─────────────────────────────────────
+st.markdown(
+    '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True
+)
+──────
 st.markdown(
     '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True
 )
@@ -200,32 +243,73 @@ st.markdown(f"""
 <div class="progress-text">{prog_pct * 100:.1f}% to target</div>
 """, unsafe_allow_html=True)
 
-# ─── Balance Chart ─────────────────────────────────────────────
-st.subheader("Balance Over Time")
+# ─── Date Range Zoom Buttons ────────────────────────────────────
+st.subheader("View Range")
+col_w, col_m, col_a = st.columns(3)
+view = 'All'
+if col_w.button("1W"): view = '1W'
+elif col_m.button("1M"): view = '1M'
+elif col_a.button("All"): view = 'All'
 
-fig, ax = plt.subplots(figsize=(10, 5))
-fig.patch.set_facecolor("#222222")
-ax.set_facecolor("#333333")
+# apply date filter
+if view == '1W':
+    start_date = date.today() - pd.Timedelta(days=7)
+    df_plot = df_acc[df_acc['Date'] >= pd.to_datetime(start_date)]
+elif view == '1M':
+    start_date = date.today() - pd.Timedelta(days=30)
+    df_plot = df_acc[df_acc['Date'] >= pd.to_datetime(start_date)]
+else:
+    df_plot = df_acc.copy()
 
-# Neon-blue line only
+# ─── Interactive Balance Chart (Hover Tooltips) ────────────────────────
+st.subheader("Balance Over Time (Interactive)")
+import altair as alt
+
 neon_blue = "#00FFFF"
-ax.plot(df_acc["Date"], df_acc["Balance"], linewidth=2.5, color=neon_blue)
-
-# Neon green labels and text
 neon_text = "#39FF14"
-ax.set_title("Balance Progress", color=neon_text)
-ax.set_xlabel("Date", color=neon_text)
-ax.set_ylabel("Balance ($)", color=neon_text)
-ax.tick_params(colors=neon_text)
-for spine in ax.spines.values():
-    spine.set_color(neon_text)
 
-# Date formatting
-ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
-fig.autofmt_xdate()
-ax.grid(False)
+df_plot = df_plot  # from zoom filter above
 
-st.pyplot(fig, use_container_width=True)
+chart = alt.Chart(df_plot).mark_line(color=neon_blue, strokeWidth=3).encode(
+    x=alt.X('Date:T', title='Date'),
+    y=alt.Y('Balance:Q', title='Balance ($)'),
+    tooltip=[alt.Tooltip('Date:T', title='Date'), alt.Tooltip('Balance:Q', title='Balance')]
+).properties(
+    width='container', height=300
+).configure_axis(
+    labelColor=neon_text,
+    titleColor=neon_text
+).configure_title(
+    color=neon_text
+).interactive()
+
+st.altair_chart(chart, use_container_width=True)
+
+# ─── Animate Build on Demand ─────────────────────────────────────
+st.subheader("Animate Balance Build")
+if st.button("Replay Build"):
+    placeholder = st.empty()
+    for i in range(1, len(df_plot)+1):
+        fig, ax = plt.subplots(figsize=(10, 3))
+        fig.patch.set_facecolor("#222222")
+        ax.set_facecolor("#333333")
+        ax.plot(df_plot['Date'][:i], df_plot['Balance'][:i], color=neon_blue, linewidth=2.5)
+        ax.set_title("Building Balance...", color=neon_text)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+        ax.tick_params(colors=neon_text)
+        for spine in ax.spines.values(): spine.set_color(neon_text)
+        ax.grid(False)
+        placeholder.pyplot(fig, use_container_width=True)
+        time.sleep(0.05)
+    placeholder.empty()
+
+# ─── Balance Sparkline ───────────────────────────────────────────
+st.subheader("Balance Sparkline")
+st.line_chart(df_acc.set_index('Date')['Balance'])(fig, use_container_width=True)
+
+# ─── Celebrate on Target Hit ─────────────────────────────────────
+if prog_pct >= 1.0:
+    st.balloons()
 
 # ─── Entries Table ─────────────────────────────────────────────
 st.subheader("Entries")
