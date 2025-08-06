@@ -167,6 +167,39 @@ c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
 c3.metric("Progress", f"{prog_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown("</div>", unsafe_allow_html=True)
 
+# ─── Animated Neon-Blue Progress Bar ───────────────────────────
+st.markdown(f"""
+<style>
+.progress-container {{
+    background-color: #222;
+    border-radius: 12px;
+    height: 25px;
+    width: 100%;
+    box-shadow: inset 0 0 4px #444;
+    margin-top: 10px;
+}}
+.progress-bar {{
+    height: 100%;
+    width: {prog_pct * 100:.1f}%;
+    background: #00FFFF;
+    border-radius: 12px;
+    box-shadow: 0 0 10px #00FFFF;
+    transition: width 1s ease-in-out;
+}}
+.progress-text {{
+    font-weight: bold;
+    text-align: right;
+    color: #39FF14;
+    padding-top: 5px;
+}}
+</style>
+
+<div class="progress-container">
+  <div class="progress-bar"></div>
+</div>
+<div class="progress-text">{prog_pct * 100:.1f}% to target</div>
+""", unsafe_allow_html=True)
+
 # ─── Balance Chart ─────────────────────────────────────────────
 st.subheader("Balance Over Time")
 
