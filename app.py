@@ -3,8 +3,8 @@ import json
 from datetime import date
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import plotly.graph_objects as go
 
 # ─── Page Config ───────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide", initial_sidebar_state="expanded")
@@ -94,20 +94,14 @@ with st.sidebar.expander("⚙️ Settings", expanded=False):
 # Persist any changes to settings
 save_settings(settings)
 
-# ─── Add Entry ────────────────────────────────────────────────
+# ─── Add / Undo / Reset Controls ──────────────────────────────
 if st.sidebar.button("Add Entry"):
-    new_row = {
-        "Account": account,
-        "Date": pd.to_datetime(entry_date),
-        "Daily P/L": daily_pl
-    }
-    df_all = pd.concat([df_all, pd.DataFrame([new_row])], ignore_index=True)
-    df_all = df_all.sort_values(["Account", "Date"])
+    new_row = {"Account": account, "Date": pd.to_datetime(entry_date), "Daily P/L": daily_pl}
+    df_all = pd.concat([df_all, pd.DataFrame([new_row])], ignore_index=True).sort_values(["Account", "Date"])
     df_all.to_csv(CSV_FILE, index=False)
     st.session_state["notification"] = f"✅ Logged {daily_pl:+.2f} for {account}"
     save_settings(settings)
 
-# ─── Undo Last Entry ───────────────────────────────────────────
 if st.sidebar.button("Undo"):
     df_acc = df_all[df_all["Account"] == account]
     if not df_acc.empty:
@@ -118,14 +112,11 @@ if st.sidebar.button("Undo"):
         st.sidebar.warning("Nothing to undo.")
     save_settings(settings)
 
-# ─── Reset All Data ────────────────────────────────────────────
 st.sidebar.subheader("Danger Zone")
 if st.sidebar.checkbox("Confirm reset all data"):
     if st.sidebar.button("Reset All Data"):
-        if os.path.exists(CSV_FILE):
-            os.remove(CSV_FILE)
-        if os.path.exists(SETTINGS_FILE):
-            os.remove(SETTINGS_FILE)
+        if os.path.exists(CSV_FILE): os.remove(CSV_FILE)
+        if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
         df_all = pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
         for a in ACCOUNTS:
             for k in (f"start_balance_{a}", f"profit_target_{a}"):
@@ -139,10 +130,7 @@ if st.session_state.get("notification"):
     st.info(st.session_state.pop("notification"), icon="🔔")
 
 # ─── Header ───────────────────────────────────────────────────
-st.markdown(
-    f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>Tracker: {account}</h2>",
-    unsafe_allow_html=True
-)
+st.markdown(f"<h2 style='font-size:1.5rem; margin-bottom:0.5rem;'>Tracker: {account}</h2>", unsafe_allow_html=True)
 
 # ─── Prepare Data & Metrics ────────────────────────────────────
 sb = st.session_state[f"start_balance_{account}"]
@@ -155,79 +143,60 @@ df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
 
 today_delta = df_acc.iloc[-1]["Daily P/L"]
 curr_bal = df_acc.iloc[-1]["Balance"]
-pct = min(curr_bal / pt if pt else 0, 1.0)
+progress_pct = min(curr_bal / pt if pt else 0, 1.0)
 pct_gain = (curr_bal - sb) / sb * 100
 
 # ─── Metrics (responsive) ───────────────────────────────────────
-st.markdown(
-    '<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">',
-    unsafe_allow_html=True
-)
+st.markdown('<div class="metric-container" style="display:flex; gap:1rem; flex-wrap:wrap;">', unsafe_allow_html=True)
 c1, c2, c3 = st.columns([1, 1, 1])
 c1.metric("Start", f"${sb:,.2f}")
 c2.metric("Current", f"${curr_bal:,.2f}", delta=f"{pct_gain:+.2f}%")
-c3.metric("Progress", f"{pct * 100:.1f}%", delta=f"${curr_bal - sb:+.2f}")
+c3.metric("Progress", f"{progress_pct*100:.1f}%", delta=f"${curr_bal-sb:+.2f}")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ─── Animated Progress Bar ──────────────────────────────────────
-st.markdown(f"""
-<style>
-.progress-container {{
-    background-color: #222;
-    border-radius: 12px;
-    height: 25px;
-    width: 100%;
-    box-shadow: inset 0 0 4px #444;
-    margin-top: 10px;
-}}
-.progress-bar {{
-    height: 100%;
-    width: {pct * 100:.1f}%;
-    background: linear-gradient(90deg, #00ccff, #3366ff);
-    border-radius: 12px;
-    box-shadow: 0 0 10px #00ccff;
-    transition: width 1s ease-in-out;
-}}
-.progress-text {{
-    font-weight: bold;
-    text-align: right;
-    color: #ccc;
-    padding-top: 5px;
-}}
-</style>
+# ─── Heartbeat Animated Balance Chart ────────────────────────────
+st.subheader("Balance Over Time (Heartbeat)")
+x = df_acc["Date"]
+y = df_acc["Balance"]
+last_idx = len(x) - 1
 
-<div class="progress-container">
-  <div class="progress-bar"></div>
-</div>
-<div class="progress-text">{pct * 100:.1f}% to target</div>
-""", unsafe_allow_html=True)
+fig = go.Figure(
+    data=[go.Scatter(
+        x=x, y=y,
+        mode="lines+markers",
+        line=dict(color="#00FF00", width=3),
+        marker=dict(size=8, color="#39FF14")
+    )],
+    layout=go.Layout(
+        xaxis=dict(title="Date", tickformat="%b %d", color="#39FF14"),
+        yaxis=dict(title="Balance ($)", color="#39FF14"),
+        paper_bgcolor="#222222",
+        plot_bgcolor="#333333",
+        font=dict(color="#39FF14"),
+        showlegend=False,
+        updatemenus=[dict(
+            type="buttons", showactive=False,
+            buttons=[dict(label="▶️ Play",
+                          method="animate",
+                          args=[None, {"frame": {"duration": 800, "redraw": False},
+                                       "fromcurrent": True, "transition": {"duration": 0}}])]
+        )]
+    ),
+    frames=[
+        go.Frame(data=[go.Scatter(
+            x=[x.iat[last_idx]], y=[y.iat[last_idx]],
+            mode="markers",
+            marker=dict(size=16, color="#FF0055", symbol="heart")
+        )]),
+        go.Frame(data=[go.Scatter(
+            x=[x.iat[last_idx]], y=[y.iat[last_idx]],
+            mode="markers",
+            marker=dict(size=8, color="#39FF14", symbol="circle")
+        )])
+    ]
+)
 
-# ─── Balance Chart with Neon-Green Text ─────────────────────────
-st.subheader("Balance Over Time")
-fig, ax = plt.subplots(figsize=(10, 5))
-# dark background
-fig.patch.set_facecolor("#222222")
-ax.set_facecolor("#333333")
-
-# balance line
-ax.plot(df_acc["Date"], df_acc["Balance"], marker='o', linewidth=2.5, color="#00FF00")
-ax.axhline(pt, linestyle="--", linewidth=2, color="#555555")
-
-# format dates
-ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
-fig.autofmt_xdate()
-
-# neon-bright green for all text & spines
-neon = "#39FF14"
-ax.set_title("Balance Progress", color=neon)
-ax.set_xlabel("Date", color=neon)
-ax.set_ylabel("Balance ($)", color=neon)
-ax.tick_params(colors=neon)
-ax.grid(False)
-for spine in ax.spines.values():
-    spine.set_color(neon)
-
-st.pyplot(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 # ─── Entries Table ─────────────────────────────────────────────
 st.subheader("Entries")
