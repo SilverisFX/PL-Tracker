@@ -144,34 +144,37 @@ for acct in accounts:
         progress = min(curr_bal / pt, 1.0) if pt else 0
         st.markdown(f"""
 <style>
-@keyframes neonPulse {{
-    0% {{ box-shadow: 0 0 5px #0ff; }}
-    50% {{ box-shadow: 0 0 20px #0ff; }}
-    100% {{ box-shadow: 0 0 5px #0ff; }}
-}}
-.bar {{
-    width: {progress*100:.1f}%;
+@keyframes neonPulse {
+    0% { box-shadow: 0 0 5px #0ff; }
+    50% { box-shadow: 0 0 20px #0ff; }
+    100% { box-shadow: 0 0 5px #0ff; }
+}
+@keyframes growBar {
+    0% { width: 0%; }
+    100% { width: " + "{progress*100:.1f}%" + "; }
+}
+.bar {
+    width: 0%;
     height: 20px;
     background: linear-gradient(90deg, #39FF14, #0ff);
     border-radius: 10px;
-    animation: neonPulse 1.2s infinite ease-in-out;
-    transition: width 0.5s ease;
-}}
-.container {{
+    animation: growBar 1s forwards ease-out, neonPulse 1.2s infinite ease-in-out;
+}
+.container {
     width: 100%;
     background: #111;
     border: 2px solid #39FF1422;
     border-radius: 10px;
     overflow: hidden;
     margin: 10px 0;
-}}
-.label {{
+}
+.label {
     color: #0ff;
     text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
     font-weight: bold;
     font-size: 1.1em;
     margin-top: 5px;
-}}
+}
 </style>
 <div class='container'><div class='bar'></div></div>
 <div class='label'>{progress*100:.1f}%</div>
