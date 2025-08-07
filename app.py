@@ -159,32 +159,32 @@ for idx, acct in enumerate(accounts):
         # Neon Animated Progress Bar
         progress = min(curr_bal / pt, 1.0) if pt else 0
         st.markdown(f"""
-        <style>
-        @keyframes neonPulse {{
-            0% {{ box-shadow: 0 0 5px #0ff; }}
-            50% {{ box-shadow: 0 0 20px #0ff; }}
-            100% {{ box-shadow: 0 0 5px #0ff; }}
-        }}
-        .bar {{
-            width: {progress*100:.1f}%;
-            height: 20px;
-            background: linear-gradient(90deg, #39FF14, #0ff);
-            border-radius: 10px;
-            animation: neonPulse 1.2s infinite ease-in-out;
-            transition: width 0.5s ease;
-        }}
-        .container {{
-            width: 100%;
-            background: #111;
-            border: 2px solid #39FF1422;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }}
-        </style>
-        <div class='container'><div class='bar'></div></div>
-        **{progress*100:.1f}% to target**
-        """, unsafe_allow_html=True)
+<style>
+@keyframes neonPulse {{
+    0% {{ box-shadow: 0 0 5px #0ff; }}
+    50% {{ box-shadow: 0 0 20px #0ff; }}
+    100% {{ box-shadow: 0 0 5px #0ff; }}
+}}
+.bar {{
+    width: {progress*100:.1f}%;
+    height: 20px;
+    background: linear-gradient(90deg, #39FF14, #0ff);
+    border-radius: 10px;
+    animation: neonPulse 1.2s infinite ease-in-out;
+    transition: width 0.5s ease;
+}}
+.container {{
+    width: 100%;
+    background: #111;
+    border: 2px solid #39FF1422;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}}
+</style>
+<div class='container'><div class='bar'></div></div>
+{progress*100:.1f}% to target
+""", unsafe_allow_html=True)
 
         # Balance Chart
         fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
