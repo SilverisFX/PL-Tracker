@@ -85,7 +85,8 @@ if st.session_state.get('reset_triggered'):
     if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
     st.session_state.clear()
     st.session_state['just_reset'] = True
-    st.experimental_rerun()
+    load_entries.clear()
+        df_all = load_entries()
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
     del st.session_state['just_reset']
@@ -126,12 +127,14 @@ with st.sidebar:
     if st.button('➕ Add Entry'):
         add_entry(entry_date.isoformat(), selected_account, daily_pl)
         st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
-        st.experimental_rerun()
+        load_entries.clear()
+        df_all = load_entries()
 
     if st.button('↩️ Undo Last'):
         delete_last_entry(selected_account)
         st.warning('⏪ Last entry removed')
-        st.experimental_rerun()
+        load_entries.clear()
+        df_all = load_entries()
 
     if st.checkbox('⚠️ Reset All Data'):
         if st.button('Confirm Reset'):
