@@ -146,13 +146,29 @@ for idx, acct in enumerate(accounts):
         col1.metric('Start Balance', f'${sb:,.2f}')
         col2.metric('Current Balance', f'${curr_bal:,.2f}', delta=f'{pct_to_tgt - 100:+.2f}%')
 
-        # Neon Progress Bar
+                # Neon Progress Bar
         progress = min(curr_bal/pt if pt else 0, 1.0)
         st.markdown(f"""
         <style>
-        @keyframes neon {{0% {{box-shadow:0 0 5px #0ff}} 50% {{box-shadow:0 0 20px #0ff}} 100% {{box-shadow:0 0 5px #0ff}}}}
-        .neon {{background:linear-gradient(90deg,#0ff,#06f);height:20px;width:{progress*100:.1f}%;border-radius:10px;animation:neon 1.2s infinite;}}
-        .container {{background:#111;border-radius:10px;overflow:hidden;margin:10px 0;border:2px solid #0ff;}}
+        @keyframes neonGlow {{
+            0% {{ box-shadow: 0 0 5px #39FF14; }}
+            100% {{ box-shadow: 0 0 20px #39FF14; }}
+        }}
+        .neon {{
+            background: linear-gradient(90deg, #39FF14, #0ff);
+            height: 20px;
+            width: {progress*100:.1f}%;
+            border-radius: 10px;
+            animation: neonGlow 1.4s infinite alternate;
+            transition: width 0.6s ease-in-out;
+        }}
+        .container {{
+            background: #111;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            border: 2px solid #39FF1422;
+        }}
         </style>
         <div class='container'><div class='neon'></div></div>
         {progress*100:.1f}% to target
@@ -169,9 +185,13 @@ for idx, acct in enumerate(accounts):
         ax.grid(False)
         st.pyplot(fig, use_container_width=True)
 
-        # Data Table
+                # Data Table
         st.subheader('Entries')
-        st.dataframe(df_acc[['entry_date','pl','Balance']]
-                     .rename(columns={'entry_date':'Date','pl':'P/L'})
-                     .style.format({'P/L': '{:+.2f}','Balance':'{:.2f}'})
-                     , use_container_width=True)
+        styled_df = (
+            df_acc[['entry_date','pl','Balance']]
+                .rename(columns={'entry_date':'Date','pl':'P/L'})
+                .style
+                .format({'P/L': '{:+.2f}','Balance':'{:.2f}'})
+                .applymap(lambda v: 'color: #39FF14' if isinstance(v, (int, float)) and v > 0 else ('color: #FF0055' if isinstance(v, (int, float)) and v < 0 else ''), subset=['P/L'])
+        )
+        st.dataframe(styled_df, use_container_width=True)
