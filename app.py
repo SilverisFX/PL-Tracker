@@ -83,10 +83,14 @@ if st.session_state.get('reset_triggered'):
     # clear DB and settings
     if os.path.exists(DB_FILE): os.remove(DB_FILE)
     if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
+    # clear cached entries
+    load_entries.clear()
+    # clear session and mark for reset message
     st.session_state.clear()
     st.session_state['just_reset'] = True
-    load_entries.clear()
-        df_all = load_entries()
+    # reload entries into dataframe
+    df_all = load_entries()
+
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
     del st.session_state['just_reset']
