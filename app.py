@@ -37,6 +37,17 @@ def load_entries() -> pd.DataFrame:
     return df
 
 def add_entry(entry_date: str, account: str, pl: float):
+    # get connection and ensure table exists (in case the DB was reset outside cached resource)
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date TEXT NOT NULL,
+            account TEXT NOT NULL,
+            pl REAL NOT NULL
+        )
+    ''')
+
     conn = get_db_connection()
     conn.execute(
         'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
@@ -87,11 +98,17 @@ if st.session_state.get('reset_triggered'):
         os.remove(SETTINGS_FILE)
     # clear cached entries
     load_entries.clear()
+    # clear cached DB connection so table can be re-created
+    get_db_connection.clear()
     # clear session and mark for reset message
     st.session_state.clear()
     st.session_state['just_reset'] = True
     # reload entries into dataframe
     df_all = load_entries()
+
+if st.session_state.get('just_reset'):
+    st.info('✅ App reset successfully.')
+    del st.session_state['just_reset']
 
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
