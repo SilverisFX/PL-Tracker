@@ -15,11 +15,11 @@ SETTINGS_FILE = 'settings.json'
 DEFAULT_ACCOUNTS = ['Account A', 'Account B']
 
 # ---------------------
-# Database Utilities   
+# Database Utilities  
 # ---------------------
-@st.cache_resource
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+def initialize_db():
+    # Ensure DB and table exist
+    conn = sqlite3.connect(DB_FILE)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,47 +28,45 @@ def get_db_connection():
             pl REAL NOT NULL
         )
     ''')
-    return conn
+    conn.commit()
+    conn.close()
 
-@st.cache_data
+def get_db_connection():
+    return sqlite3.connect(DB_FILE, check_same_thread=False)
+
 def load_entries() -> pd.DataFrame:
     conn = get_db_connection()
     df = pd.read_sql('SELECT * FROM entries', conn, parse_dates=['entry_date'])
+    conn.close()
     return df
 
 def add_entry(entry_date: str, account: str, pl: float):
-    # get connection and ensure table exists (in case the DB was reset outside cached resource)
     conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entry_date TEXT NOT NULL,
-            account TEXT NOT NULL,
-            pl REAL NOT NULL
+    try:
+        conn.execute(
+            'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
+            (entry_date, account, pl)
         )
-    ''')
-
-    conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
-        (entry_date, account, pl)
-    )
-    conn.commit()
-    load_entries.clear()
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        st.sidebar.error(f"Database error: {e}")
+    finally:
+        conn.close()
 
 def delete_last_entry(account: str):
-    conn = get_db_connection()
     df = load_entries()
     df_acc = df[df['account'] == account]
     if not df_acc.empty:
         last_id = df_acc.sort_values('entry_date').iloc[-1]['id']
+        conn = get_db_connection()
         conn.execute('DELETE FROM entries WHERE id = ?', (last_id,))
         conn.commit()
-        load_entries.clear()
+        conn.close()
 
 # ---------------------
 # Settings Utilities  
 # ---------------------
+
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -78,6 +76,7 @@ def load_settings() -> dict:
             return {}
     return {}
 
+
 def save_settings(settings: dict):
     with open(SETTINGS_FILE, 'w') as f:
         json.dump(settings, f, indent=2)
@@ -85,34 +84,25 @@ def save_settings(settings: dict):
 # ---------------------
 # App Initialization  
 # ---------------------
+initialize_db()
 st.set_page_config(page_title='Tracker', page_icon='💰', layout='wide')
 settings = load_settings()
 accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
 
 # Reset handling
 if st.session_state.get('reset_triggered'):
-    # clear DB and settings
-    if os.path.exists(DB_FILE):
-        os.remove(DB_FILE)
-    if os.path.exists(SETTINGS_FILE):
-        os.remove(SETTINGS_FILE)
-    # clear cached entries
-    load_entries.clear()
-    # clear cached DB connection so table can be re-created
-    get_db_connection.clear()
-    # clear session and mark for reset message
+    # remove files
+    if os.path.exists(DB_FILE): os.remove(DB_FILE)
+    if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
+    # reinitialize DB
+    initialize_db()
     st.session_state.clear()
     st.session_state['just_reset'] = True
-    # reload entries into dataframe
-    df_all = load_entries()
+    st.experimental_rerun()
 
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
-    del st.session_state['just_reset']
-
-if st.session_state.get('just_reset'):
-    st.info('✅ App reset successfully.')
-    del st.session_state['just_reset']
+    st.session_state.pop('just_reset')
 
 # Initialize per-account defaults
 for acct in accounts:
@@ -134,7 +124,7 @@ with st.sidebar:
     st.header('📋 Account Entry')
     selected_account = st.selectbox('Account', accounts, index=0)
 
-    entry_date = st.date_input('Date', value=pd.to_datetime(settings[f'last_date_{selected_account}']))
+    entry_date = st.date_input('Date', value=pd.to_datetime(settings.get(f'last_date_{selected_account}', date.today())))
     daily_pl = st.number_input("Today's P/L", key=f'daily_pl_{selected_account}', format='%.2f', step=0.01)
 
     # Update settings
@@ -150,13 +140,11 @@ with st.sidebar:
     if st.button('➕ Add Entry'):
         add_entry(entry_date.isoformat(), selected_account, daily_pl)
         st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
-        load_entries.clear()
         df_all = load_entries()
 
     if st.button('↩️ Undo Last'):
         delete_last_entry(selected_account)
         st.warning('⏪ Last entry removed')
-        load_entries.clear()
         df_all = load_entries()
 
     if st.checkbox('⚠️ Reset All Data'):
