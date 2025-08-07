@@ -15,7 +15,6 @@ ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Reset Handling ────────────────────────────────────
 if st.session_state.get("reset_triggered"):
-    # Clear cached data & session, then restart
     st.cache_data.clear()
     st.session_state.clear()
     st.session_state["just_reset"] = True
@@ -169,6 +168,36 @@ for i, acct in enumerate(ACCOUNTS):
         cols = st.columns(2)
         cols[0].metric("Start", f"${sb:,.2f}")
         cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
+
+        # --- Neon Progress Bar ---
+        prog = min(curr / pt if pt else 0, 1.0)  # percent to target (0.0–1.0)
+        st.markdown(f"""
+            <style>
+            @keyframes neon {{
+                0% {{ box-shadow: 0 0 10px #00eaff; }}
+                50% {{ box-shadow: 0 0 35px #00eaff; }}
+                100% {{ box-shadow: 0 0 10px #00eaff; }}
+            }}
+            .neon-bar {{
+                background: linear-gradient(90deg, #00eaff, #0af);
+                height: 25px;
+                width: {prog*100:.1f}%;
+                border-radius: 12px;
+                animation: neon 1.4s infinite;
+                transition: width 0.6s;
+            }}
+            .bar-container {{
+                background: #181c24;
+                border-radius: 12px;
+                overflow: hidden;
+                margin-bottom: 12px;
+                border: 2px solid #00eaff22;
+            }}
+            </style>
+            <div class="bar-container"><div class="neon-bar"></div></div>
+        """, unsafe_allow_html=True)
+        st.write(f"<b>{prog*100:.1f}% to target</b>", unsafe_allow_html=True)
+        # --- End Neon Progress Bar ---
 
         if gain > 0:
             st.success("📈 Great! You're in profit today. Keep up the momentum!")
