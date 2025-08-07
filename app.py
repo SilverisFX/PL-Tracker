@@ -15,6 +15,7 @@ ACCOUNTS = ["Account A", "Account B"]
 
 # ─── Reset Handling ────────────────────────────────────
 if st.session_state.get("reset_triggered"):
+    # Clear cached data & session, then restart
     st.cache_data.clear()
     st.session_state.clear()
     st.session_state["just_reset"] = True
