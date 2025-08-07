@@ -18,7 +18,6 @@ DEFAULT_ACCOUNTS = ['Account A', 'Account B']
 # Database Utilities  
 # ---------------------
 def initialize_db():
-    # Ensure DB and table exist
     conn = sqlite3.connect(DB_FILE)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS entries (
@@ -79,17 +78,13 @@ st.set_page_config(page_title='Tracker', page_icon='💰', layout='wide')
 settings = load_settings()
 accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
 
-# Initialize per-account defaults
+# Ensure session_state has profit_target defaults
 for acct in accounts:
-    settings.setdefault(f'start_balance_{acct}', 1000.0)
     settings.setdefault(f'profit_target_{acct}', 2000.0)
-    settings.setdefault(f'last_date_{acct}', str(date.today()))
-    settings.setdefault(f'daily_pl_{acct}', 0.0)
-    st.session_state.setdefault(f'daily_pl_{acct}', settings[f'daily_pl_{acct}'])
-    st.session_state.setdefault(f'last_date_{acct}', settings[f'last_date_{acct}'])
+    # initialize session state for profit targets
+    st.session_state.setdefault(f'profit_target_{acct}', settings[f'profit_target_{acct}'])
 save_settings(settings)
 
-# Load data
 df_all = load_entries()
 
 # ---------------------
@@ -99,15 +94,15 @@ with st.sidebar:
     st.header('📋 Account Entry')
     selected_account = st.selectbox('Account', accounts, index=0)
 
-    entry_date = st.date_input('Date', value=pd.to_datetime(settings.get(f'last_date_{selected_account}', date.today())))
-    daily_pl = st.number_input("Today's P/L", key=f'daily_pl_{selected_account}', format='%.2f', step=0.01)
+    # Date and P/L inputs
+    entry_date = st.date_input('Date', value=date.today())
+    daily_pl = st.number_input("Today's P/L", format='%.2f', step=0.01)
 
-    # Update settings
-    settings[f'last_date_{selected_account}'] = str(entry_date)
-    settings[f'daily_pl_{selected_account}'] = daily_pl
-
-    start_bal = st.number_input('Starting Balance', value=settings[f'start_balance_{selected_account}'], step=100.0, format='%.2f')
-    profit_tgt = st.number_input('Profit Target', value=settings[f'profit_target_{selected_account}'], step=100.0, format='%.2f')
+    # Balance & Profit Target inputs
+    start_bal = st.number_input('Starting Balance', value=settings.get(f'start_balance_{selected_account}', 1000.0), step=100.0, format='%.2f')
+    profit_tgt = st.number_input('Profit Target', value=st.session_state[f'profit_target_{selected_account}'], step=100.0, format='%.2f')
+    # Update both session_state and settings for live tracking
+    st.session_state[f'profit_target_{selected_account}'] = profit_tgt
     settings[f'start_balance_{selected_account}'] = start_bal
     settings[f'profit_target_{selected_account}'] = profit_tgt
     save_settings(settings)
@@ -117,17 +112,16 @@ with st.sidebar:
         st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
         df_all = load_entries()
 
-    # Today's metric
+    # Today's P/L metric
     today = date.today()
     df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
-    today_sum = df_today['pl'].sum()
-    st.metric("🗖 Today's P/L", f"{today_sum:+.2f}")
+    st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
 
 # ---------------------
 # Main: Tabs per Account
 # ---------------------
 st.header('📊 Trading Tracker')
-tabs = st.tabs([f"{acct}" for acct in accounts])
+tabs = st.tabs([acct for acct in accounts])
 for idx, acct in enumerate(accounts):
     with tabs[idx]:
         df_acc = df_all[df_all['account']==acct].copy()
@@ -136,45 +130,48 @@ for idx, acct in enumerate(accounts):
             df_acc = pd.DataFrame([{'id':0,'entry_date':pd.to_datetime(date.today()),'account':acct,'pl':0.0}])
 
         # Compute balances
-        sb = settings[f'start_balance_{acct}']
-        pt = settings[f'profit_target_{acct}']
+        sb = settings.get(f'start_balance_{acct}', 1000.0)
+        pt = st.session_state[f'profit_target_{acct}']
         df_acc['Balance'] = df_acc['pl'].cumsum() + sb
         curr_bal = df_acc.iloc[-1]['Balance']
-        pct_to_tgt = (curr_bal/sb)*100 if sb else 0
+        pct_to_tgt = (curr_bal / pt) * 100 if pt else 0
 
+        # Metrics
         col1, col2 = st.columns(2)
         col1.metric('Start Balance', f'${sb:,.2f}')
         col2.metric('Current Balance', f'${curr_bal:,.2f}', delta=f'{pct_to_tgt - 100:+.2f}%')
 
-                # Neon Progress Bar
-        progress = min(curr_bal/pt if pt else 0, 1.0)
+        # Neon Animated Progress Bar
+        progress = min(curr_bal / pt, 1.0) if pt else 0
         st.markdown(f"""
         <style>
-        @keyframes neonGlow {{
-            0% {{ box-shadow: 0 0 5px #39FF14; }}
-            100% {{ box-shadow: 0 0 20px #39FF14; }}
+        @keyframes neonPulse {{
+            0% {{ box-shadow: 0 0 5px #0ff; }}
+            50% {{ box-shadow: 0 0 20px #0ff; }}
+            100% {{ box-shadow: 0 0 5px #0ff; }}
         }}
-        .neon {{
-            background: linear-gradient(90deg, #39FF14, #0ff);
-            height: 20px;
+        .bar {{
             width: {progress*100:.1f}%;
+            height: 20px;
+            background: linear-gradient(90deg, #39FF14, #0ff);
             border-radius: 10px;
-            animation: neonGlow 1.4s infinite alternate;
-            transition: width 0.6s ease-in-out;
+            animation: neonPulse 1.2s infinite ease-in-out;
+            transition: width 0.5s ease;
         }}
         .container {{
+            width: 100%;
             background: #111;
+            border: 2px solid #39FF1422;
             border-radius: 10px;
             overflow: hidden;
             margin: 10px 0;
-            border: 2px solid #39FF1422;
         }}
         </style>
-        <div class='container'><div class='neon'></div></div>
-        {progress*100:.1f}% to target
+        <div class='container'><div class='bar'></div></div>
+        **{progress*100:.1f}% to target**
         """, unsafe_allow_html=True)
 
-        # Plot Balance Curve
+        # Balance Chart
         fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
         ax.set_facecolor('#333')
         ax.plot(df_acc['entry_date'], df_acc['Balance'], linewidth=2)
@@ -185,13 +182,13 @@ for idx, acct in enumerate(accounts):
         ax.grid(False)
         st.pyplot(fig, use_container_width=True)
 
-                # Data Table
+        # Entries Table with Color Styling
         st.subheader('Entries')
-        styled_df = (
+        styled = (
             df_acc[['entry_date','pl','Balance']]
-                .rename(columns={'entry_date':'Date','pl':'P/L'})
-                .style
-                .format({'P/L': '{:+.2f}','Balance':'{:.2f}'})
-                .applymap(lambda v: 'color: #39FF14' if isinstance(v, (int, float)) and v > 0 else ('color: #FF0055' if isinstance(v, (int, float)) and v < 0 else ''), subset=['P/L'])
+            .rename(columns={'entry_date':'Date','pl':'P/L'})
+            .style
+            .format({'P/L': '{:+.2f}','Balance':'{:.2f}'})
+            .applymap(lambda v: 'color:#39FF14' if isinstance(v, (int,float)) and v>0 else ('color:#FF0055' if isinstance(v,(int,float)) and v<0 else ''), subset=['P/L'])
         )
-        st.dataframe(styled_df, use_container_width=True)
+        st.dataframe(styled, use_container_width=True)
