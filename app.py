@@ -7,7 +7,6 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-# ─── Config ──────────────────────────────────────────────────
 st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
 CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
@@ -62,13 +61,12 @@ def load_data() -> pd.DataFrame:
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
 df_all = load_data()
-# Ensure Date column is datetime for .dt access
 df_all["Date"] = pd.to_datetime(df_all["Date"])
 
 # ─── Sidebar Inputs ───────────────────────────
 with st.sidebar:
     st.header("📋 Account Entry")
-    mobile_view = st.checkbox("📱 Mobile View Mode")
+    # mobile_view = st.checkbox("📱 Mobile View Mode")  <-- REMOVED
 
     account = st.selectbox(
         "Account",
@@ -133,7 +131,6 @@ with st.sidebar:
             st.session_state["reset_triggered"] = True
             st.success("✅ Files removed. Reloading app...")
 
-    # ─ Calculate & display today’s true P/L ─
     today = date.today()
     mask_today = (
         (df_all["Account"] == account)
@@ -170,7 +167,7 @@ for i, acct in enumerate(ACCOUNTS):
         cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
 
         # --- Neon Progress Bar ---
-        prog = min(curr / pt if pt else 0, 1.0)  # percent to target (0.0–1.0)
+        prog = min(curr / pt if pt else 0, 1.0)
         st.markdown(f"""
             <style>
             @keyframes neon {{
@@ -197,7 +194,6 @@ for i, acct in enumerate(ACCOUNTS):
             <div class="bar-container"><div class="neon-bar"></div></div>
         """, unsafe_allow_html=True)
         st.write(f"<b>{prog*100:.1f}% to target</b>", unsafe_allow_html=True)
-        # --- End Neon Progress Bar ---
 
         if gain > 0:
             st.success("📈 Great! You're in profit today. Keep up the momentum!")
@@ -206,13 +202,11 @@ for i, acct in enumerate(ACCOUNTS):
         else:
             st.info("🧘‍♂️ Neutral day. Stay consistent.")
 
-        # Optional “smart tip”
         if len(df_acc) >= 3:
             last_3 = df_acc.tail(3)["Daily P/L"].values
             if last_3[-1] < 0 and last_3[-2] > 0 and last_3[-3] > 0:
                 st.info("🤖 Tip: Two wins followed by a loss — consider taking partial profits next time.")
 
-        # Date range filter (if more than one entry)
         if len(df_acc) > 1:
             start, end = st.date_input(
                 "Date Range",
