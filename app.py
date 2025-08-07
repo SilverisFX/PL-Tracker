@@ -54,8 +54,12 @@ st.sidebar.header('Add New Entry')
 entry_dt = st.sidebar.date_input('Date', value=date.today())
 entry_pl = st.sidebar.number_input('P/L', format='%f', step=0.1)
 if st.sidebar.button('Add Entry'):
-    add_entry(entry_dt.isoformat(), selected_account, entry_pl)
-    st.sidebar.success(f'Logged {entry_pl:+.2f} for {selected_account}')
+    try:
+        add_entry(entry_dt.isoformat(), selected_account, entry_pl)
+        st.sidebar.success(f"✅ Logged {entry_pl:+.2f} for {selected_account}")
+        st.experimental_rerun()
+    except Exception as e:
+        st.sidebar.error(f"Error logging entry: {e}")
 
 # Main Display
 st.header('Historical P/L Data')
