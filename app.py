@@ -119,8 +119,8 @@ with st.sidebar:
     df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
     st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
 
-    # Reset this account's data
-    if st.button('🔄 Reset This Account Data'):
+    # 🔴 RESET
+    if st.button('🔴 RESET'):
         conn = get_db_connection()
         conn.execute('DELETE FROM entries WHERE account = ?', (selected_account,))
         conn.commit()
