@@ -11,7 +11,10 @@ DB_FILE = 'trading_tracker.db'
 SETTINGS_FILE = 'settings.json'
 DEFAULT_ACCOUNTS = ['Account A', 'Account B']
 
+print("Starting Trading Tracker App")
+
 def initialize_db():
+    print("Initializing database...")
     conn = sqlite3.connect(DB_FILE)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS entries (
@@ -23,20 +26,25 @@ def initialize_db():
     ''')
     conn.commit()
     conn.close()
+    print("Database initialized")
 
 
 def get_db_connection():
+    print(f"Opening DB connection to {DB_FILE}")
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
 
 def load_entries():
+    print("Loading entries from DB...")
     conn = get_db_connection()
     df = pd.read_sql('SELECT * FROM entries', conn, parse_dates=['entry_date'])
     conn.close()
+    print(f"Loaded {len(df)} entries")
     return df
 
 
 def add_entry(entry_date, account, pl):
+    print(f"Adding entry: date={entry_date}, account={account}, pl={pl}")
     conn = get_db_connection()
     conn.execute(
         'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
@@ -44,21 +52,29 @@ def add_entry(entry_date, account, pl):
     )
     conn.commit()
     conn.close()
+    print("Entry added successfully")
 
 
 def load_settings():
+    print("Loading settings...")
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
-        except Exception:
+                settings = json.load(f)
+                print(f"Settings loaded: {settings}")
+                return settings
+        except Exception as e:
+            print(f"Error loading settings: {e}")
             return {}
+    print("Settings file not found, using defaults")
     return {}
 
 
 def save_settings(settings):
+    print(f"Saving settings: {settings}")
     with open(SETTINGS_FILE, 'w') as f:
         json.dump(settings, f, indent=2)
+    print("Settings saved")
 
 initialize_db()
 settings = load_settings()
@@ -71,12 +87,15 @@ for acct in accounts:
     settings.setdefault(f'daily_pl_{acct}', 0.0)
     st.session_state.setdefault(f'profit_target_{acct}', settings[f'profit_target_{acct}'])
 save_settings(settings)
+print(f"Final accounts list: {accounts}")
 
 df_all = load_entries()
+print("Entries dataframe prepared")
 
 with st.sidebar:
     st.header('📋 Account Entry')
     selected_account = st.selectbox('Account', accounts)
+    print(f"Selected account: {selected_account}")
     entry_date = st.date_input('Date', value=date.today())
     daily_pl = st.number_input("Today's P/L", format='%.2f', step=0.01)
     start_bal = st.number_input('Starting Balance', value=settings.get(f'start_balance_{selected_account}', 1000.0), step=100.0, format='%.2f')
@@ -86,6 +105,7 @@ with st.sidebar:
     settings[f'profit_target_{selected_account}'] = profit_tgt
     save_settings(settings)
     if st.button('➕ Add Entry'):
+        print("Add Entry button clicked")
         add_entry(entry_date.isoformat(), selected_account, daily_pl)
         df_all = load_entries()
         st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
@@ -93,6 +113,7 @@ with st.sidebar:
     df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
     st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
     if st.button('🔴 RESET'):
+        print("RESET button clicked")
         conn = get_db_connection()
         conn.execute('DELETE FROM entries WHERE account = ?', (selected_account,))
         conn.commit()
