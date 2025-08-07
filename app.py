@@ -129,6 +129,7 @@ with st.sidebar:
             st.session_state["reset_triggered"] = True
             st.success("✅ Files removed. Reloading app...")
 
+    # Calculate & display today’s true P/L
     today = date.today()
     mask_today = (
         (df_all["Account"] == account)
@@ -160,29 +161,19 @@ for i, acct in enumerate(ACCOUNTS):
         gain = df_acc.iloc[-1]["Daily P/L"]
         pct_gain = (curr - sb) / sb * 100
 
-        # --- PATCH: Show Today's P/L beside Current ---
+        # --- PATCH: Show Today's P/L beside Current, no HTML ---
         today = date.today()
         mask_today = (df_acc["Date"].dt.date == today)
         today_pl_tab = df_acc.loc[mask_today, "Daily P/L"].sum()
 
-        cols = st.columns([1, 2])
+        cols = st.columns(2)
         cols[0].metric("Start", f"${sb:,.2f}")
-        current_label = (
-            "Current<br>"
-            f"<span style='font-size:0.95em;color:#00eaff;'>Today P/L {today_pl_tab:+.2f}</span>"
-        )
         cols[1].metric(
-            label=current_label,
-            value=f"${curr:,.2f}",
+            "Current",
+            f"${curr:,.2f}  Today P/L {today_pl_tab:+.2f}",
             delta=f"{pct_gain:+.2f}%",
-            help="Current balance. Today P/L shows today's sum for this account."
+            help="Current balance and today's P/L"
         )
-        st.markdown("""
-            <style>
-            [data-testid="stMetricLabel"] > div > span { white-space:pre; }
-            [data-testid="stMetricLabel"] span { line-height: 1.3; }
-            </style>
-        """, unsafe_allow_html=True)
         # --- END PATCH ---
 
         # --- Neon Progress Bar ---
