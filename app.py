@@ -1,258 +1,79 @@
 import os
-import json
-from datetime import date, datetime
+import sqlite3
+from datetime import date
 import pandas as pd
-import numpy as np
 import streamlit as st
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 
-st.set_page_config(page_title="Tracker", page_icon="💰", layout="wide")
-CSV_FILE = "tracker.csv"
-SETTINGS_FILE = "settings.json"
-ACCOUNTS = ["Account A", "Account B"]
+# ---------------------
+# Database Utilities   
+# ---------------------
+DB_FILE = 'trading_tracker.db'
 
-# ─── Reset Handling ────────────────────────────────────
-if st.session_state.get("reset_triggered"):
-    st.cache_data.clear()
-    st.session_state.clear()
-    st.session_state["just_reset"] = True
-    st.experimental_rerun()
-if st.session_state.get("just_reset"):
-    st.info("✅ App reset successfully.")
-    del st.session_state["just_reset"]
+@st.cache_resource
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date TEXT NOT NULL,
+            account TEXT NOT NULL,
+            pl REAL NOT NULL
+        )
+    ''')
+    return conn
 
-# ─── Settings Storage ───────────────────────────
-def load_settings() -> dict:
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            return {}
-    return {}
-def save_settings(settings: dict):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
-settings = load_settings()
-
-# ─── Ensure Defaults ──────────────────────────
-for acct in ACCOUNTS:
-    settings.setdefault(f"start_balance_{acct}", 1000.0)
-    settings.setdefault(f"profit_target_{acct}", 2000.0)
-    settings.setdefault(f"last_date_{acct}", str(date.today()))
-    settings.setdefault(f"daily_pl_{acct}", 0.0)
-    st.session_state.setdefault(f"daily_pl_{acct}", settings[f"daily_pl_{acct}"])
-    st.session_state.setdefault(f"last_date_{acct}", settings[f"last_date_{acct}"])
-save_settings(settings)
-
-# ─── Data Loading ───────────────────────────
 @st.cache_data
-def load_data() -> pd.DataFrame:
-    if os.path.exists(CSV_FILE):
-        return (
-            pd.read_csv(CSV_FILE, parse_dates=["Date"], dtype={"Daily P/L": float})
-              .dropna(subset=["Date"])
-        )
-    return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
-df_all = load_data()
-df_all["Date"] = pd.to_datetime(df_all["Date"])
+def load_entries():
+    conn = get_db_connection()
+    df = pd.read_sql('SELECT * FROM entries', conn, parse_dates=['entry_date'])
+    return df
 
-# ─── Sidebar Inputs ───────────────────────────
-with st.sidebar:
-    st.header("📋 Account Entry")
-
-    account = st.selectbox(
-        "Account",
-        ACCOUNTS,
-        index=ACCOUNTS.index(settings.get("last_account", ACCOUNTS[0]))
+def add_entry(entry_date: str, account: str, pl: float):
+    conn = get_db_connection()
+    conn.execute(
+        'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
+        (entry_date, account, pl)
     )
-    settings["last_account"] = account
+    conn.commit()
+    # clear cache
+    load_entries.clear()
 
-    entry_date = st.date_input(
-        "Date",
-        value=pd.to_datetime(settings[f"last_date_{account}"])
-    )
-    daily_pl = st.number_input(
-        "Today's P/L",
-        step=0.01,
-        format="%.2f",
-        key=f"daily_pl_{account}"
-    )
-    settings[f"last_date_{account}"] = str(entry_date)
-    settings[f"daily_pl_{account}"] = daily_pl
+# ---------------------
+# Streamlit App       
+# ---------------------
+st.set_page_config(page_title='Trading Tracker', layout='wide')
+st.title('📊 Trading Account Profit & Loss Tracker')
 
-    sb = st.number_input(
-        "Starting Balance",
-        value=settings[f"start_balance_{account}"],
-        step=100.0,
-        format="%.2f"
-    )
-    pt = st.number_input(
-        "Profit Target",
-        value=settings[f"profit_target_{account}"],
-        step=100.0,
-        format="%.2f"
-    )
-    settings[f"start_balance_{account}"], settings[f"profit_target_{account}"] = sb, pt
+# Sidebar Inputs
+accounts = st.sidebar.text_input('Accounts (comma-separated)', value='Account A,Account B')
+account_list = [a.strip() for a in accounts.split(',') if a.strip()]
+selected_account = st.sidebar.selectbox('Select Account', account_list)
 
-    save_settings(settings)
+st.sidebar.markdown('---')
+st.sidebar.header('Add New Entry')
+entry_dt = st.sidebar.date_input('Date', value=date.today())
+entry_pl = st.sidebar.number_input('P/L', format='%f', step=0.1)
+if st.sidebar.button('Add Entry'):
+    add_entry(entry_dt.isoformat(), selected_account, entry_pl)
+    st.sidebar.success(f'Logged {entry_pl:+.2f} for {selected_account}')
 
-    # Callback to append entry and reset P/L
-    def add_entry_cb(acct, ent_date, pl):
-        global df_all
-        new_row = pd.DataFrame([{
-            "Account": acct,
-            "Date": pd.to_datetime(ent_date),
-            "Daily P/L": pl
-        }])
-        df_all = pd.concat([df_all, new_row], ignore_index=True)
-        df_all.sort_values(["Account", "Date"], inplace=True)
-        df_all.to_csv(CSV_FILE, index=False)
+# Main Display
+st.header('Historical P/L Data')
+entries = load_entries()
+if not entries.empty:
+    # Filter by account
+    filtered = entries[entries['account'] == selected_account].copy()
+    filtered.sort_values('entry_date', inplace=True)
+    filtered.reset_index(drop=True, inplace=True)
 
-        st.success(f"✅ Logged {pl:+.2f} for {acct}")
-        st.session_state[f"daily_pl_{acct}"] = 0.0
-        settings[f"daily_pl_{acct}"] = 0.0
-        save_settings(settings)
-        st.experimental_rerun()
+    # Metrics
+    total_pl = filtered['pl'].sum()
+    st.metric('Total P/L', f'{total_pl:+.2f}')
 
-    st.button(
-        "➕ Add Entry",
-        on_click=add_entry_cb,
-        args=(account, entry_date, daily_pl)
-    )
+    # Data Table
+    st.dataframe(filtered[['entry_date', 'pl']], use_container_width=True)
 
-    if st.button("↩️ Undo Last"):
-        df_acc = df_all[df_all["Account"] == account]
-        if not df_acc.empty:
-            last_idx = df_acc.index[-1]
-            df_all.drop(last_idx, inplace=True)
-            df_all.to_csv(CSV_FILE, index=False)
-            st.experimental_rerun()
-        else:
-            st.warning("No entries to undo")
-
-    if st.checkbox("⚠️ Reset All Data", key="reset_confirm"):
-        if st.button("Confirm Reset"):
-            for file in (CSV_FILE, SETTINGS_FILE):
-                if os.path.exists(file):
-                    os.remove(file)
-            st.session_state["reset_triggered"] = True
-            st.success("✅ Files removed. Reloading app...")
-
-    # Sidebar Today’s P/L metric
-    today = date.today()
-    mask_today = (
-        (df_all["Account"] == account)
-        & (df_all["Date"].dt.date == today)
-    )
-    today_pl = df_all.loc[mask_today, "Daily P/L"].sum()
-    settings[f"daily_pl_{account}"] = today_pl
-    save_settings(settings)
-    st.metric("🗖️ Today's P/L", f"{today_pl:+.2f}")
-
-# ─── Tabs for Account Comparison ──────────────────────────
-tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
-for i, acct in enumerate(ACCOUNTS):
-    with tabs[i]:
-        st.markdown(f"## Tracker: {acct}")
-        df_acc = df_all[df_all["Account"] == acct].copy().sort_values("Date")
-        sb = settings[f"start_balance_{acct}"]
-        pt = settings[f"profit_target_{acct}"]
-
-        if df_acc.empty:
-            df_acc = pd.DataFrame([{
-                "Account": acct,
-                "Date": pd.to_datetime(date.today()),
-                "Daily P/L": 0.0
-            }])
-
-        df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
-        curr = df_acc.iloc[-1]["Balance"]
-
-        # Today's P/L in tab
-        today = date.today()
-        mask_today = df_acc["Date"].dt.date == today
-        today_pl_tab = df_acc.loc[mask_today, "Daily P/L"].sum()
-
-        # Metrics row: Start, Current, Today P/L
-        cols = st.columns(3)
-        cols[0].metric("Start", f"${sb:,.2f}")
-        cols[1].metric("Current", f"${curr:,.2f}")
-        cols[2].metric("Today P/L", f"{today_pl_tab:+.2f}")
-
-        # Neon animated progress bar
-        prog = min(curr / pt if pt else 0, 1.0)
-        st.markdown(f"""
-            <style>
-            @keyframes neon {{
-              0% {{ box-shadow: 0 0 10px #00eaff; }}
-              50% {{ box-shadow: 0 0 35px #00eaff; }}
-              100% {{ box-shadow: 0 0 10px #00eaff; }}
-            }}
-            .neon-bar {{
-              background: linear-gradient(90deg, #00eaff, #0af);
-              height: 25px;
-              width: {prog*100:.1f}%;
-              border-radius: 12px;
-              animation: neon 1.4s infinite;
-              transition: width 0.6s;
-            }}
-            .bar-container {{
-              background: #181c24;
-              border-radius: 12px;
-              overflow: hidden;
-              margin-bottom: 12px;
-              border: 2px solid #00eaff22;
-            }}
-            </style>
-            <div class="bar-container"><div class="neon-bar"></div></div>
-        """, unsafe_allow_html=True)
-        st.write(f"<b>{prog*100:.1f}% to target</b>", unsafe_allow_html=True)
-
-        # Outcome message
-        if curr > sb:
-            st.success("📈 Great! You're in profit today.")
-        elif curr < sb:
-            st.warning("📉 Loss today.")
-        else:
-            st.info("🧘‍♂️ Neutral day.")
-
-        # Smart tip
-        if len(df_acc) >= 3:
-            last_3 = df_acc.tail(3)["Daily P/L"].values
-            if last_3[-1] < 0 < last_3[-2] and last_3[-2] > 0:
-                st.info("🤖 Tip: Two wins followed by a loss—consider taking profits.")
-
-        # Date range filter
-        if len(df_acc) > 1:
-            start, end = st.date_input(
-                "Date Range",
-                [df_acc["Date"].min(), df_acc["Date"].max()],
-                key=f"range_{acct}"
-            )
-            df_acc = df_acc[
-                (df_acc["Date"] >= pd.to_datetime(start)) &
-                (df_acc["Date"] <= pd.to_datetime(end))
-            ]
-
-        # Balance over time chart
-        st.subheader("Balance Over Time")
-        fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
-        ax.set_facecolor('#333')
-        ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
-        ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
-        ax.tick_params(colors='#39FF14')
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        fig.autofmt_xdate()
-        ax.grid(False)
-        st.pyplot(fig, use_container_width=True)
-
-        # Entries table
-        st.subheader("Entries")
-        st.dataframe(
-            df_acc.style
-                .format({'Date': '{:%Y-%m-%d}', 'Daily P/L': '{:+.2f}', 'Balance': '{:,.2f}'})
-                .applymap(lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055', subset=['Daily P/L']),
-            use_container_width=True
-        )
+    # Time Series Chart
+    st.line_chart(data=filtered.set_index('entry_date')['pl'].cumsum(), width=0)
+else:
+    st.info('No entries yet. Add an entry from the sidebar.')
