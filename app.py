@@ -108,7 +108,7 @@ if st.session_state.get('reset_triggered'):
     # clear session state and show reset message
     st.session_state.clear()
     st.session_state['just_reset'] = True
-    st.experimental_rerun()
+    
 
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
