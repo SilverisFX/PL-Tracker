@@ -181,9 +181,16 @@ for idx, acct in enumerate(accounts):
     overflow: hidden;
     margin: 10px 0;
 }}
+.label {{
+    color: #0ff;
+    text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-top: 5px;
+}}
 </style>
 <div class='container'><div class='bar'></div></div>
-{progress*100:.1f}% to target
+<div class='label'>{progress*100:.1f}%</div>
 """, unsafe_allow_html=True)
 
         # Balance Chart
