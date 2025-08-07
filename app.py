@@ -1,4 +1,6 @@
-import os, sqlite3, json
+import os
+import sqlite3
+import json
 from datetime import date
 import pandas as pd
 import streamlit as st
@@ -9,25 +11,33 @@ DB_FILE = 'trading_tracker.db'
 SETTINGS_FILE = 'settings.json'
 DEFAULT_ACCOUNTS = ['Account A', 'Account B']
 
-def init_db():
+def initialize_db():
     conn = sqlite3.connect(DB_FILE)
-    conn.execute(
-        'CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_date TEXT NOT NULL, account TEXT NOT NULL, pl REAL NOT NULL)'
-    )
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date TEXT NOT NULL,
+            account TEXT NOT NULL,
+            pl REAL NOT NULL
+        )
+    ''')
     conn.commit()
     conn.close()
 
-def get_conn():
+
+def get_db_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
+
 def load_entries():
-    conn = get_conn()
+    conn = get_db_connection()
     df = pd.read_sql('SELECT * FROM entries', conn, parse_dates=['entry_date'])
     conn.close()
     return df
 
+
 def add_entry(entry_date, account, pl):
-    conn = get_conn()
+    conn = get_db_connection()
     conn.execute(
         'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
         (entry_date, account, pl)
@@ -35,62 +45,82 @@ def add_entry(entry_date, account, pl):
     conn.commit()
     conn.close()
 
+
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         try:
-            with open(SETTINGS_FILE) as f:
+            with open(SETTINGS_FILE, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
     return {}
 
+
 def save_settings(settings):
     with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings, f)
+        json.dump(settings, f, indent=2)
 
-init_db()
+initialize_db()
 settings = load_settings()
 accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
+
 for acct in accounts:
     settings.setdefault(f'start_balance_{acct}', 1000.0)
     settings.setdefault(f'profit_target_{acct}', 2000.0)
+    settings.setdefault(f'last_date_{acct}', str(date.today()))
+    settings.setdefault(f'daily_pl_{acct}', 0.0)
+    st.session_state.setdefault(f'profit_target_{acct}', settings[f'profit_target_{acct}'])
 save_settings(settings)
+
 df_all = load_entries()
 
-st.sidebar.header('Account Entry')
-acct = st.sidebar.selectbox('Account', accounts)
-entry_date = st.sidebar.date_input('Date', value=date.today())
-daily_pl = st.sidebar.number_input("Today's P/L", format='%.2f', step=0.01)
-start_bal = st.sidebar.number_input('Starting Balance', value=settings[f'start_balance_{acct}'], step=100.0, format='%.2f')
-profit_tgt = st.sidebar.number_input('Profit Target', value=settings[f'profit_target_{acct}'], step=100.0, format='%.2f')
-if st.sidebar.button('Add Entry'):
-    add_entry(entry_date.isoformat(), acct, daily_pl)
-    df_all = load_entries()
-    settings[f'start_balance_{acct}'] = start_bal
-    settings[f'profit_target_{acct}'] = profit_tgt
+with st.sidebar:
+    st.header('📋 Account Entry')
+    selected_account = st.selectbox('Account', accounts)
+    entry_date = st.date_input('Date', value=date.today())
+    daily_pl = st.number_input("Today's P/L", format='%.2f', step=0.01)
+    start_bal = st.number_input('Starting Balance', value=settings.get(f'start_balance_{selected_account}', 1000.0), step=100.0, format='%.2f')
+    profit_tgt = st.number_input('Profit Target', value=st.session_state[f'profit_target_{selected_account}'], step=100.0, format='%.2f')
+    st.session_state[f'profit_target_{selected_account}'] = profit_tgt
+    settings[f'start_balance_{selected_account}'] = start_bal
+    settings[f'profit_target_{selected_account}'] = profit_tgt
     save_settings(settings)
-    st.sidebar.success(f'Logged {daily_pl:+.2f}')
+    if st.button('➕ Add Entry'):
+        add_entry(entry_date.isoformat(), selected_account, daily_pl)
+        df_all = load_entries()
+        st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
+    today = date.today()
+    df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
+    st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
+    if st.button('🔴 RESET'):
+        conn = get_db_connection()
+        conn.execute('DELETE FROM entries WHERE account = ?', (selected_account,))
+        conn.commit()
+        conn.close()
+        settings[f'start_balance_{selected_account}'] = 0.0
+        settings[f'profit_target_{selected_account}'] = 0.0
+        st.session_state[f'profit_target_{selected_account}'] = 0.0
+        save_settings(settings)
+        df_all = load_entries()
+        st.success(f"✅ Account '{selected_account}' data reset to zero.")
 
-today = date.today()
-df_today = df_all[(df_all['account']==acct) & (df_all['entry_date'].dt.date==today)]
-st.sidebar.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
-
-st.header('Trading Tracker')
+st.header('📊 Trading Tracker')
 tabs = st.tabs(accounts)
-for a in accounts:
-    with tabs[accounts.index(a)]:
-        df_acc = df_all[df_all['account']==a].copy()
-        df_acc['entry_date'] = pd.to_datetime(df_acc['entry_date'])
+for acct in accounts:
+    with tabs[accounts.index(acct)]:
+        df_acc = df_all[df_all['account']==acct].copy()
         df_acc.sort_values('entry_date', inplace=True)
-        sb = settings[f'start_balance_{a}']
-        pt = settings[f'profit_target_{a}']
+        if df_acc.empty:
+            df_acc = pd.DataFrame([{'entry_date':pd.to_datetime(date.today()), 'account':acct, 'pl':0.0, 'id':0}])
+        sb = settings.get(f'start_balance_{acct}', 1000.0)
+        pt = st.session_state[f'profit_target_{acct}']
         df_acc['Balance'] = df_acc['pl'].cumsum() + sb
-        curr = df_acc['Balance'].iloc[-1] if not df_acc.empty else sb
-        pct = curr/pt*100 if pt else 0
+        curr_bal = df_acc.iloc[-1]['Balance']
+        pct_to_tgt = (curr_bal / pt) * 100 if pt else 0
         col1, col2 = st.columns(2)
         col1.metric('Start Balance', f'${sb:,.2f}')
-        col2.metric('Current Balance', f'${curr:,.2f}', delta=f'{pct:.1f}%')
-        progress = min(pct, 100)
+        col2.metric('Current Balance', f'${curr_bal:,.2f}', delta=f'{pct_to_tgt:.2f}%')
+        progress = min(curr_bal / pt, 1.0) if pt else 0
         st.markdown(f"""
 <style>
 @keyframes neonPulse {{
@@ -99,7 +129,7 @@ for a in accounts:
     100% {{ box-shadow: 0 0 5px #0ff; }}
 }}
 .bar {{
-    width: {progress:.1f}%;
+    width: {progress*100:.1f}%;
     height: 20px;
     background: linear-gradient(90deg, #39FF14, #0ff);
     border-radius: 10px;
@@ -123,16 +153,14 @@ for a in accounts:
 }}
 </style>
 <div class='container'><div class='bar'></div></div>
-<div class='label'>{progress:.1f}%</div>
+<div class='label'>{progress*100:.1f}%</div>
 """, unsafe_allow_html=True)
         fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
         ax.set_facecolor('#333')
-        if not df_acc.empty:
-            ax.plot(df_acc['entry_date'], df_acc['Balance'], linewidth=2)
-            ax.fill_between(df_acc['entry_date'], df_acc['Balance'], alpha=0.2)
+        ax.plot(df_acc['entry_date'], df_acc['Balance'], linewidth=2)
+        ax.fill_between(df_acc['entry_date'], df_acc['Balance'], alpha=0.2)
         ax.tick_params(colors='#0ff')
-        for spine in ax.spines.values():
-            spine.set_color('#0ff')
+        for spine in ax.spines.values(): spine.set_color('#0ff')
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         ax.grid(False)
         st.pyplot(fig, use_container_width=True)
