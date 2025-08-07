@@ -91,13 +91,24 @@ accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
 
 # Reset handling
 if st.session_state.get('reset_triggered'):
-    # remove files
+    # remove DB and settings files
     if os.path.exists(DB_FILE): os.remove(DB_FILE)
     if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
     # reinitialize DB
     initialize_db()
+    # reset in-memory settings to zero values
+    settings.clear()
+    settings['accounts'] = DEFAULT_ACCOUNTS
+    for acct in DEFAULT_ACCOUNTS:
+        settings.setdefault(f'start_balance_{acct}', 0.0)
+        settings.setdefault(f'profit_target_{acct}', 0.0)
+        settings.setdefault(f'last_date_{acct}', str(date.today()))
+        settings.setdefault(f'daily_pl_{acct}', 0.0)
+    save_settings(settings)
+    # clear session state and show reset message
     st.session_state.clear()
     st.session_state['just_reset'] = True
+    st.experimental_rerun()
 
 if st.session_state.get('just_reset'):
     st.info('✅ App reset successfully.')
