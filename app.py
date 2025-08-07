@@ -117,6 +117,23 @@ with st.sidebar:
     df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
     st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
 
+    # Reset this account's data
+    if st.button('🔄 Reset This Account Data'):
+        # Delete all entries for this account
+        conn = get_db_connection()
+        conn.execute('DELETE FROM entries WHERE account = ?', (selected_account,))
+        conn.commit()
+        conn.close()
+        # Reset start balance and profit target
+        settings[f'start_balance_{selected_account}'] = 0.0
+        settings[f'profit_target_{selected_account}'] = 0.0
+        st.session_state[f'profit_target_{selected_account}'] = 0.0
+        save_settings(settings)
+        # Reload data
+        df_all = load_entries()
+        st.success(f"✅ Account '{selected_account}' data reset to zero.")
+        "Today's P/L", f"{df_today['pl'].sum():+.2f}")
+
 # ---------------------
 # Main: Tabs per Account
 # ---------------------
