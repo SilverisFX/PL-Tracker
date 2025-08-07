@@ -154,7 +154,7 @@ for idx, acct in enumerate(accounts):
         # Metrics
         col1, col2 = st.columns(2)
         col1.metric('Start Balance', f'${sb:,.2f}')
-        col2.metric('Current Balance', f'${curr_bal:,.2f}', delta=f'{pct_to_tgt - 100:+.2f}%')
+        col2.metric('Current Balance', f'${curr_bal:,.2f}', delta=f'{pct_to_tgt:.2f}%')')
 
         # Neon Animated Progress Bar
         progress = min(curr_bal / pt, 1.0) if pt else 0
