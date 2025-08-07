@@ -62,7 +62,7 @@ def load_data() -> pd.DataFrame:
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
 
 df_all = load_data()
-# ─ Ensure Date is datetime for .dt access
+# Ensure Date column is datetime for .dt access
 df_all["Date"] = pd.to_datetime(df_all["Date"])
 
 # ─── Sidebar Inputs ───────────────────────────
@@ -133,14 +133,13 @@ with st.sidebar:
             st.session_state["reset_triggered"] = True
             st.success("✅ Files removed. Reloading app...")
 
-    # ─ Calculate and display today’s true P/L ─
+    # ─ Calculate & display today’s true P/L ─
     today = date.today()
     mask_today = (
         (df_all["Account"] == account)
         & (df_all["Date"].dt.date == today)
     )
     today_pl = df_all.loc[mask_today, "Daily P/L"].sum()
-    st.session_state[f"daily_pl_{account}"] = today_pl
     settings[f"daily_pl_{account}"] = today_pl
     save_settings(settings)
     st.metric("🗖️ Today's P/L", f"{today_pl:+.2f}")
