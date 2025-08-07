@@ -12,6 +12,7 @@ CSV_FILE = "tracker.csv"
 SETTINGS_FILE = "settings.json"
 ACCOUNTS = ["Account A", "Account B"]
 
+# ─── Reset Handling ────────────────────────────────────
 if st.session_state.get("reset_triggered"):
     st.cache_data.clear()
     st.session_state.clear()
@@ -22,6 +23,7 @@ if st.session_state.get("just_reset"):
     st.info("✅ App reset successfully.")
     del st.session_state["just_reset"]
 
+# ─── Settings Storage ───────────────────────────
 def load_settings() -> dict:
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -37,6 +39,7 @@ def save_settings(settings: dict):
 
 settings = load_settings()
 
+# ─── Ensure Defaults ──────────────────────────
 for acct in ACCOUNTS:
     settings.setdefault(f"start_balance_{acct}", 1000.0)
     settings.setdefault(f"profit_target_{acct}", 2000.0)
@@ -47,6 +50,7 @@ for acct in ACCOUNTS:
 
 save_settings(settings)
 
+# ─── Data Loading ───────────────────────────
 @st.cache_data
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
@@ -59,8 +63,11 @@ def load_data() -> pd.DataFrame:
 df_all = load_data()
 df_all["Date"] = pd.to_datetime(df_all["Date"])
 
+# ─── Sidebar Inputs ───────────────────────────
 with st.sidebar:
     st.header("📋 Account Entry")
+    # mobile_view = st.checkbox("📱 Mobile View Mode")  <-- REMOVED
+
     account = st.selectbox(
         "Account",
         ACCOUNTS,
@@ -155,30 +162,9 @@ for i, acct in enumerate(ACCOUNTS):
         gain = df_acc.iloc[-1]["Daily P/L"]
         pct_gain = (curr - sb) / sb * 100
 
-        # Calculate today's P/L for this account (in the tab)
-        today = date.today()
-        mask_today = (df_acc["Date"].dt.date == today)
-        today_pl_tab = df_acc.loc[mask_today, "Daily P/L"].sum()
-
-        cols = st.columns([1, 2])
+        cols = st.columns(2)
         cols[0].metric("Start", f"${sb:,.2f}")
-        current_label = (
-            "Current<br>"
-            f"<span style='font-size:0.85em;color:#00eaff;'>Today P/L {today_pl_tab:+.2f}</span>"
-        )
-        cols[1].metric(
-            label=current_label,
-            value=f"${curr:,.2f}",
-            delta=f"{pct_gain:+.2f}%",
-            help="Current balance. Today P/L shows today's sum for this account."
-        )
-
-        # Make HTML render in metric label
-        st.markdown("""
-        <style>
-        [data-testid="stMetricLabel"] > div > span { white-space:pre; }
-        </style>
-        """, unsafe_allow_html=True)
+        cols[1].metric("Current", f"${curr:,.2f}", delta=f"{pct_gain:+.2f}%")
 
         # --- Neon Progress Bar ---
         prog = min(curr / pt if pt else 0, 1.0)
