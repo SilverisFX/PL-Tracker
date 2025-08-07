@@ -53,16 +53,6 @@ def add_entry(entry_date: str, account: str, pl: float):
     finally:
         conn.close()
 
-def delete_last_entry(account: str):
-    df = load_entries()
-    df_acc = df[df['account'] == account]
-    if not df_acc.empty:
-        last_id = df_acc.sort_values('entry_date').iloc[-1]['id']
-        conn = get_db_connection()
-        conn.execute('DELETE FROM entries WHERE id = ?', (last_id,))
-        conn.commit()
-        conn.close()
-
 # ---------------------
 # Settings Utilities  
 # ---------------------
@@ -88,31 +78,6 @@ initialize_db()
 st.set_page_config(page_title='Tracker', page_icon='💰', layout='wide')
 settings = load_settings()
 accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
-
-# Reset handling
-if st.session_state.get('reset_triggered'):
-    # remove DB and settings files
-    if os.path.exists(DB_FILE): os.remove(DB_FILE)
-    if os.path.exists(SETTINGS_FILE): os.remove(SETTINGS_FILE)
-    # reinitialize DB
-    initialize_db()
-    # reset in-memory settings to zero values
-    settings.clear()
-    settings['accounts'] = DEFAULT_ACCOUNTS
-    for acct in DEFAULT_ACCOUNTS:
-        settings.setdefault(f'start_balance_{acct}', 0.0)
-        settings.setdefault(f'profit_target_{acct}', 0.0)
-        settings.setdefault(f'last_date_{acct}', str(date.today()))
-        settings.setdefault(f'daily_pl_{acct}', 0.0)
-    save_settings(settings)
-    # clear session state and show reset message
-    st.session_state.clear()
-    st.session_state['just_reset'] = True
-    
-
-if st.session_state.get('just_reset'):
-    st.info('✅ App reset successfully.')
-    st.session_state.pop('just_reset')
 
 # Initialize per-account defaults
 for acct in accounts:
@@ -152,17 +117,7 @@ with st.sidebar:
         st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
         df_all = load_entries()
 
-    if st.button('↩️ Undo Last'):
-        delete_last_entry(selected_account)
-        st.warning('⏪ Last entry removed')
-        df_all = load_entries()
-
-    if st.checkbox('⚠️ Reset All Data'):
-        if st.button('Confirm Reset'):
-            st.session_state['reset_triggered'] = True
-            st.success('🔄 Resetting...')
-
-    # Show today's metric
+    # Today's metric
     today = date.today()
     df_today = df_all[(df_all['account']==selected_account) & (df_all['entry_date'].dt.date==today)]
     today_sum = df_today['pl'].sum()
