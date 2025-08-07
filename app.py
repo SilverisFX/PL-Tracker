@@ -50,10 +50,11 @@ save_settings(settings)
 @st.cache_data
 def load_data() -> pd.DataFrame:
     if os.path.exists(CSV_FILE):
-        return (pd.read_csv(CSV_FILE, parse_dates=["Date"], dtype={"Daily P/L": float})
-                  .dropna(subset=["Date"]))
+        return (
+            pd.read_csv(CSV_FILE, parse_dates=["Date"], dtype={"Daily P/L": float})
+              .dropna(subset=["Date"])
+        )
     return pd.DataFrame(columns=["Account", "Date", "Daily P/L"])
-
 df_all = load_data()
 df_all["Date"] = pd.to_datetime(df_all["Date"])
 
@@ -97,29 +98,24 @@ with st.sidebar:
 
     save_settings(settings)
 
-    # — Define callback to add an entry and reset P/L —
-    def add_entry_cb(account, entry_date, daily_p_l):
+    # Callback to append entry and reset P/L
+    def add_entry_cb(acct, ent_date, pl):
         global df_all
         new_row = pd.DataFrame([{
-            "Account": account,
-            "Date": pd.to_datetime(entry_date),
-            "Daily P/L": daily_p_l
+            "Account": acct,
+            "Date": pd.to_datetime(ent_date),
+            "Daily P/L": pl
         }])
         df_all = pd.concat([df_all, new_row], ignore_index=True)
         df_all.sort_values(["Account", "Date"], inplace=True)
         df_all.to_csv(CSV_FILE, index=False)
 
-        st.success(f"✅ Logged {daily_p_l:+.2f} for {account}")
-
-        # Reset the input widget back to zero
-        st.session_state[f"daily_pl_{account}"] = 0.0
-        settings[f"daily_pl_{account}"] = 0.0
+        st.success(f"✅ Logged {pl:+.2f} for {acct}")
+        st.session_state[f"daily_pl_{acct}"] = 0.0
+        settings[f"daily_pl_{acct}"] = 0.0
         save_settings(settings)
-
-        # Rerun to refresh all panels
         st.experimental_rerun()
 
-    # — Use button with on_click callback —
     st.button(
         "➕ Add Entry",
         on_click=add_entry_cb,
@@ -132,6 +128,7 @@ with st.sidebar:
             last_idx = df_acc.index[-1]
             df_all.drop(last_idx, inplace=True)
             df_all.to_csv(CSV_FILE, index=False)
+            st.experimental_rerun()
         else:
             st.warning("No entries to undo")
 
@@ -143,7 +140,7 @@ with st.sidebar:
             st.session_state["reset_triggered"] = True
             st.success("✅ Files removed. Reloading app...")
 
-    # Calculate & display today’s true P/L in the sidebar
+    # Sidebar Today’s P/L metric
     today = date.today()
     mask_today = (
         (df_all["Account"] == account)
@@ -158,5 +155,104 @@ with st.sidebar:
 tabs = st.tabs([f"📊 {acct}" for acct in ACCOUNTS])
 for i, acct in enumerate(ACCOUNTS):
     with tabs[i]:
-        # ... your existing tab code (Start/Current/Today P/L metrics, neon bar, chart, entries) ...
-        pass
+        st.markdown(f"## Tracker: {acct}")
+        df_acc = df_all[df_all["Account"] == acct].copy().sort_values("Date")
+        sb = settings[f"start_balance_{acct}"]
+        pt = settings[f"profit_target_{acct}"]
+
+        if df_acc.empty:
+            df_acc = pd.DataFrame([{
+                "Account": acct,
+                "Date": pd.to_datetime(date.today()),
+                "Daily P/L": 0.0
+            }])
+
+        df_acc["Balance"] = df_acc["Daily P/L"].cumsum() + sb
+        curr = df_acc.iloc[-1]["Balance"]
+
+        # Today's P/L in tab
+        today = date.today()
+        mask_today = df_acc["Date"].dt.date == today
+        today_pl_tab = df_acc.loc[mask_today, "Daily P/L"].sum()
+
+        # Metrics row: Start, Current, Today P/L
+        cols = st.columns(3)
+        cols[0].metric("Start", f"${sb:,.2f}")
+        cols[1].metric("Current", f"${curr:,.2f}")
+        cols[2].metric("Today P/L", f"{today_pl_tab:+.2f}")
+
+        # Neon animated progress bar
+        prog = min(curr / pt if pt else 0, 1.0)
+        st.markdown(f"""
+            <style>
+            @keyframes neon {{
+              0% {{ box-shadow: 0 0 10px #00eaff; }}
+              50% {{ box-shadow: 0 0 35px #00eaff; }}
+              100% {{ box-shadow: 0 0 10px #00eaff; }}
+            }}
+            .neon-bar {{
+              background: linear-gradient(90deg, #00eaff, #0af);
+              height: 25px;
+              width: {prog*100:.1f}%;
+              border-radius: 12px;
+              animation: neon 1.4s infinite;
+              transition: width 0.6s;
+            }}
+            .bar-container {{
+              background: #181c24;
+              border-radius: 12px;
+              overflow: hidden;
+              margin-bottom: 12px;
+              border: 2px solid #00eaff22;
+            }}
+            </style>
+            <div class="bar-container"><div class="neon-bar"></div></div>
+        """, unsafe_allow_html=True)
+        st.write(f"<b>{prog*100:.1f}% to target</b>", unsafe_allow_html=True)
+
+        # Outcome message
+        if curr > sb:
+            st.success("📈 Great! You're in profit today.")
+        elif curr < sb:
+            st.warning("📉 Loss today.")
+        else:
+            st.info("🧘‍♂️ Neutral day.")
+
+        # Smart tip
+        if len(df_acc) >= 3:
+            last_3 = df_acc.tail(3)["Daily P/L"].values
+            if last_3[-1] < 0 < last_3[-2] and last_3[-2] > 0:
+                st.info("🤖 Tip: Two wins followed by a loss—consider taking profits.")
+
+        # Date range filter
+        if len(df_acc) > 1:
+            start, end = st.date_input(
+                "Date Range",
+                [df_acc["Date"].min(), df_acc["Date"].max()],
+                key=f"range_{acct}"
+            )
+            df_acc = df_acc[
+                (df_acc["Date"] >= pd.to_datetime(start)) &
+                (df_acc["Date"] <= pd.to_datetime(end))
+            ]
+
+        # Balance over time chart
+        st.subheader("Balance Over Time")
+        fig, ax = plt.subplots(figsize=(8, 4), facecolor='#222')
+        ax.set_facecolor('#333')
+        ax.plot(df_acc['Date'], df_acc['Balance'], color='#00FFFF', linewidth=2.5)
+        ax.fill_between(df_acc['Date'], df_acc['Balance'], color='#00FFFF', alpha=0.2)
+        ax.tick_params(colors='#39FF14')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        fig.autofmt_xdate()
+        ax.grid(False)
+        st.pyplot(fig, use_container_width=True)
+
+        # Entries table
+        st.subheader("Entries")
+        st.dataframe(
+            df_acc.style
+                .format({'Date': '{:%Y-%m-%d}', 'Daily P/L': '{:+.2f}', 'Balance': '{:,.2f}'})
+                .applymap(lambda v: 'color:#39FF14' if isinstance(v, (int, float)) and v >= 0 else 'color:#FF0055', subset=['Daily P/L']),
+            use_container_width=True
+        )
