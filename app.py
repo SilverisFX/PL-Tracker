@@ -7,6 +7,9 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+# ----------------------------
+# Basic setup
+# ----------------------------
 st.set_page_config(page_title="Forex P/L Tracker", page_icon="💹", layout="wide")
 
 DATA_DIR = "data"
@@ -18,6 +21,9 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 
 DEFAULT_ACCOUNTS = ["Account A", "Account B"]
 
+# ----------------------------
+# Backup + Persistence Helpers
+# ----------------------------
 def backup_file(path: str):
     try:
         if os.path.exists(path):
@@ -73,7 +79,9 @@ def save_df(df: pd.DataFrame):
     backup_file(CSV_FILE)
     df.to_csv(CSV_FILE, index=False)
 
-# ---------- init ----------
+# ----------------------------
+# Initialize data
+# ----------------------------
 df_all = load_df()
 if df_all.empty:
     df_all = pd.DataFrame(columns=["Date", "Account", "PL"])
@@ -89,9 +97,12 @@ if "account_cfg" not in settings:
     }
     save_settings(settings)
 
-# ---------- sidebar ----------
+# ----------------------------
+# Sidebar – Settings, Add Entry, Safety
+# ----------------------------
 st.sidebar.title("⚙️ Settings")
 
+# Manage accounts
 with st.sidebar.expander("Accounts", expanded=True):
     selected_account = st.selectbox("Select account", settings["accounts"])
     new_acc = st.text_input("Add account")
@@ -105,7 +116,7 @@ with st.sidebar.expander("Accounts", expanded=True):
                 st.success(f"Added account '{new_acc}'")
                 st.rerun()
     with c2:
-        # 🔧 Removed garbage-bin emoji here
+        # Removed garbage-bin emoji
         if st.button("Remove", use_container_width=True, help="Remove current account"):
             if selected_account in settings["accounts"]:
                 settings["accounts"].remove(selected_account)
@@ -114,18 +125,19 @@ with st.sidebar.expander("Accounts", expanded=True):
                 st.warning(f"Removed account '{selected_account}' from list (data rows remain).")
                 st.rerun()
 
+# Per-account targets
 cfg = settings["account_cfg"].get(selected_account, {"starting_balance": 1000.0, "target_balance": 2000.0})
 sb = float(st.sidebar.number_input("Starting Balance ($)", value=float(cfg["starting_balance"]), step=100.0))
 tb = float(st.sidebar.number_input("Target Balance ($)", value=float(cfg["target_balance"]), step=100.0, help="When current balance hits this, progress = 100%"))
 if tb <= sb:
     st.sidebar.error("Target Balance must be greater than Starting Balance.")
-# 🔧 Save button now emoji-only
+# Save button → emoji only
 if st.sidebar.button("💾", use_container_width=True):
     settings["account_cfg"][selected_account] = {"starting_balance": sb, "target_balance": tb}
     save_settings(settings)
     st.sidebar.success("Saved")
 
-# Sidebar Add Entry
+# Sidebar Add Entry (keeps main page clean)
 st.sidebar.subheader("🧾 Add Entry")
 entry_date = st.sidebar.date_input("Date", value=date.today(), key="sidebar_date")
 pl_value = st.sidebar.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f", key="sidebar_pl")
@@ -141,7 +153,7 @@ if add_clicked:
     })
     df_all = pd.concat([df_all, new_row], ignore_index=True)
     save_df(df_all)
-    st.sidebar.success(f"Added {pl_value:+,.0f} for {selected_account}")
+    st.sidebar.success(f"Added {pl_value:+,.0f} for {selected_account}")  # no decimals in display
     st.rerun()
 
 if undo_clicked:
@@ -155,7 +167,7 @@ if undo_clicked:
     else:
         st.sidebar.warning("No entries to undo for this account.")
 
-# Export / Import
+# Export / Import & backups
 st.sidebar.markdown("### 🛟 Data Safety")
 col_exp, col_imp = st.sidebar.columns(2)
 with col_exp:
@@ -189,10 +201,52 @@ if st.sidebar.button("🧨 RESET", key="reset_btn", help="Delete all rows for th
     else:
         st.sidebar.warning("Check the confirmation box first.")
 
-# ---------- compute ----------
+# ----------------------------
+# Compute metrics
+# ----------------------------
 df_acc = df_all[df_all["Account"] == selected_account].copy()
 if not df_acc.empty:
     df_acc["Date"] = pd.to_datetime(df_acc["Date"], errors="coerce")
     df_acc = df_acc.dropna(subset=["Date"]).sort_values("Date")
 else:
-    df_acc = pd.DataFrame(column_
+    # ✅ This is the line that was corrupted before
+    df_acc = pd.DataFrame(columns=["Date", "Account", "PL"])
+
+cum_profit = float(df_acc["PL"].sum()) if not df_acc.empty else 0.0
+current_balance = float(sb + cum_profit)
+target_profit = max(tb - sb, 1e-9)
+pct_to_target = float(np.clip((current_balance - sb) / target_profit * 100.0, 0.0, 100.0))
+
+# ----------------------------
+# Main: CLEAN Overview only
+# ----------------------------
+st.title("💹 Forex Profit & Loss Tracker")
+
+st.subheader("Overview")
+m1, m2 = st.columns(2)
+m1.metric("Current Balance", f"${current_balance:,.0f}")   # no decimals
+m2.metric("To Target", f"{pct_to_target:.2f}%")
+
+# Neon Blue Animated Progress
+st.markdown(
+    f"""
+    <style>
+    .progress-wrap {{
+        background: #0b0b0b;
+        border: 1px solid #0ff5;
+        border-radius: 10px;
+        padding: 10px;
+        margin-top: 10px;
+    }}
+    .progress-bar {{
+        height: 16px;
+        width: {pct_to_target}%;
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 0 8px #0ff, inset 0 0 6px #0ff4;
+        animation: glow 2s ease-in-out infinite alternate;
+        background: linear-gradient(90deg, rgba(0,255,255,0.25), rgba(0,255,255,0.9));
+    }}
+    @keyframes glow {{
+        0% {{ box-shadow: 0 0 4px #0ff, inset 0 0 4px #0ff3; }}
+        100% {{ box
