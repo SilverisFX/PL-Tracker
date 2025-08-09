@@ -1,3 +1,4 @@
+if st.sidebar.button("💾", use_container_width=True):
 # app.py
 import os, json, time
 from datetime import datetime, date
