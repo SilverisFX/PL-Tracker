@@ -1,217 +1,329 @@
-import os
-import sqlite3
-import json
-from datetime import date
+# app.py
+import os, json, time
+from datetime import datetime, date
 import pandas as pd
+import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-DB_FILE = 'trading_tracker.db'
-SETTINGS_FILE = 'settings.json'
-DEFAULT_ACCOUNTS = ['Account A', 'Account B']
+# ----------------------------
+# Basic setup
+# ----------------------------
+st.set_page_config(page_title="Forex P/L Tracker", page_icon="💹", layout="wide")
 
-def initialize_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entry_date TEXT NOT NULL,
-            account TEXT NOT NULL,
-            pl REAL NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+CSV_FILE = os.path.join(DATA_DIR, "tracker.csv")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
+DEFAULT_ACCOUNTS = ["Account A", "Account B"]
 
-def get_db_connection():
-    return sqlite3.connect(DB_FILE, check_same_thread=False)
+# ----------------------------
+# Backup + Persistence Helpers
+# ----------------------------
+def backup_file(path: str):
+    try:
+        if os.path.exists(path):
+            ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            base = os.path.basename(path)
+            bpath = os.path.join(BACKUP_DIR, f"{base}.{ts}.bak")
+            with open(path, "rb") as src, open(bpath, "wb") as dst:
+                dst.write(src.read())
+    except Exception as e:
+        st.warning(f"Backup failed for {os.path.basename(path)}: {e}")
 
-
-def load_entries():
-    conn = get_db_connection()
-    df = pd.read_sql('SELECT * FROM entries', conn, parse_dates=['entry_date'])
-    conn.close()
-    return df
-
-
-def add_entry(entry_date, account, pl):
-    conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO entries (entry_date, account, pl) VALUES (?, ?, ?)',
-        (entry_date, account, pl)
+def _restore_json_from_backups(prefix: str) -> dict:
+    names = sorted(
+        [n for n in os.listdir(BACKUP_DIR) if n.startswith(prefix)],
+        reverse=True
     )
-    conn.commit()
-    conn.close()
-
-
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
+    for name in names:
         try:
-            with open(SETTINGS_FILE, 'r') as f:
-                return json.load(f)
+            return json.load(open(os.path.join(BACKUP_DIR, name), "r"))
         except Exception:
-            return {}
+            continue
     return {}
 
+def _restore_csv_from_backups(prefix: str) -> pd.DataFrame:
+    names = sorted(
+        [n for n in os.listdir(BACKUP_DIR) if n.startswith(prefix)],
+        reverse=True
+    )
+    for name in names:
+        try:
+            return pd.read_csv(os.path.join(BACKUP_DIR, name))
+        except Exception:
+            continue
+    return pd.DataFrame(columns=["Date", "Account", "PL"])
 
-def save_settings(settings):
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings, f, indent=2)
+def load_settings() -> dict:
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            return json.load(open(SETTINGS_FILE, "r"))
+    except Exception:
+        st.warning("Settings file corrupted; attempting restore…")
+        return _restore_json_from_backups("settings.json")
+    return {}
 
-# --- Initialization ---
-initialize_db()
+def save_settings(settings: dict):
+    backup_file(SETTINGS_FILE)
+    json.dump(settings, open(SETTINGS_FILE, "w"), indent=2)
+
+def load_df() -> pd.DataFrame:
+    try:
+        if os.path.exists(CSV_FILE):
+            return pd.read_csv(CSV_FILE)
+    except Exception:
+        st.warning("Data file corrupted; attempting restore…")
+        return _restore_csv_from_backups("tracker.csv")
+    return pd.DataFrame(columns=["Date", "Account", "PL"])
+
+def save_df(df: pd.DataFrame):
+    backup_file(CSV_FILE)
+    df.to_csv(CSV_FILE, index=False)
+
+# ----------------------------
+# Initialize data
+# ----------------------------
+df_all = load_df()
+if df_all.empty:
+    df_all = pd.DataFrame(columns=["Date", "Account", "PL"])
+
 settings = load_settings()
-accounts = settings.get('accounts', DEFAULT_ACCOUNTS)
+if "accounts" not in settings:
+    settings["accounts"] = DEFAULT_ACCOUNTS
 
-for acct in accounts:
-    settings.setdefault(f'start_balance_{acct}', 1000.0)
-    settings.setdefault(f'profit_target_{acct}', 2000.0)
-save_settings(settings)
-
-# --- Load data ---
-df_all = load_entries()
-
-# --- Sidebar entry form ---
-with st.sidebar:
-    st.header('📋 Account Entry')
-    selected_account = st.selectbox('Account', accounts)
-    entry_date = st.date_input('Date', value=date.today())
-    daily_pl = st.number_input("Today's P/L", format='%.2f', step=0.01)
-    start_bal = st.number_input(
-        'Starting Balance',
-        value=settings[f'start_balance_{selected_account}'],
-        step=100.0,
-        format='%.2f'
-    )
-    profit_tgt = st.number_input(
-        'Profit Target',
-        value=settings[f'profit_target_{selected_account}'],
-        step=100.0,
-        format='%.2f'
-    )
-
-    # Persist sidebar settings immediately
-    settings[f'start_balance_{selected_account}'] = start_bal
-    settings[f'profit_target_{selected_account}'] = profit_tgt
+# per-account config store
+if "account_cfg" not in settings:
+    # defaults: starting_balance=1000, target_balance=2000 -> target_profit=1000
+    settings["account_cfg"] = {
+        acc: {"starting_balance": 1000.0, "target_balance": 2000.0}
+        for acc in settings["accounts"]
+    }
     save_settings(settings)
 
-    if st.button('➕ Add Entry'):
-        add_entry(entry_date.isoformat(), selected_account, daily_pl)
-        df_all = load_entries()
-        st.success(f'✅ Logged {daily_pl:+.2f} for {selected_account}')
+# ----------------------------
+# Sidebar – Accounts & Safety
+# ----------------------------
+st.sidebar.title("⚙️ Settings")
 
-    # Today's P/L metric
-    today = date.today()
-    df_today = df_all[
-        (df_all['account'] == selected_account) &
-        (df_all['entry_date'].dt.date == today)
-    ]
-    st.metric("Today's P/L", f"{df_today['pl'].sum():+.2f}")
+# manage accounts
+with st.sidebar.expander("Accounts", expanded=True):
+    selected_account = st.selectbox("Select account", settings["accounts"])
+    new_acc = st.text_input("Add account")
+    c1, c2 = st.columns([1,1])
+    with c1:
+        if st.button("➕ Add", use_container_width=True) and new_acc.strip():
+            if new_acc not in settings["accounts"]:
+                settings["accounts"].append(new_acc)
+                settings["account_cfg"][new_acc] = {
+                    "starting_balance": 1000.0, "target_balance": 2000.0
+                }
+                save_settings(settings)
+                st.success(f"Added account '{new_acc}'")
+                st.rerun()
+    with c2:
+        if st.button("🗑️ Remove", use_container_width=True, help="Remove current account"):
+            if selected_account in settings["accounts"]:
+                # warn but allow (does not delete historical rows, just removes from dropdown)
+                settings["accounts"].remove(selected_account)
+                settings["account_cfg"].pop(selected_account, None)
+                save_settings(settings)
+                st.warning(f"Removed account '{selected_account}' from list (data rows remain).")
+                st.rerun()
 
-    # Reset button (all-caps, no emoji)
-    if st.button('RESET'):
-        conn = get_db_connection()
-        conn.execute('DELETE FROM entries WHERE account = ?', (selected_account,))
-        conn.commit()
-        conn.close()
-        # zero out settings
-        settings[f'start_balance_{selected_account}'] = 0.0
-        settings[f'profit_target_{selected_account}'] = 0.0
-        save_settings(settings)
-        df_all = load_entries()
-        st.success(f"✅ Account '{selected_account}' data reset to zero.")
+# per-account targets
+cfg = settings["account_cfg"].get(selected_account, {"starting_balance": 1000.0, "target_balance": 2000.0})
+sb = float(st.sidebar.number_input("Starting Balance ($)", value=float(cfg["starting_balance"]), step=100.0))
+tb = float(st.sidebar.number_input("Target Balance ($)", value=float(cfg["target_balance"]), step=100.0, help="When current balance hits this, progress = 100%"))
+if tb <= sb:
+    st.sidebar.error("Target Balance must be greater than Starting Balance.")
+if st.sidebar.button("💾 Save Account Config", use_container_width=True):
+    settings["account_cfg"][selected_account] = {"starting_balance": sb, "target_balance": tb}
+    save_settings(settings)
+    st.sidebar.success("Saved")
 
-# --- Main tracker view ---
-st.header('📊 Trading Tracker')
-tabs = st.tabs(accounts)
+# Export / Import & backups
+st.sidebar.markdown("### 🛟 Data Safety")
+col_exp, col_imp = st.sidebar.columns(2)
+with col_exp:
+    if os.path.exists(CSV_FILE):
+        st.download_button("Export CSV", data=open(CSV_FILE, "rb").read(),
+                           file_name="tracker_export.csv", mime="text/csv")
+with col_imp:
+    up = st.file_uploader("Import CSV", type=["csv"], label_visibility="collapsed")
+    if up is not None:
+        try:
+            df_new = pd.read_csv(up)
+            required = {"Date", "Account", "PL"}
+            if not required.issubset(set(df_new.columns)):
+                raise ValueError("CSV must have columns: Date, Account, PL")
+            save_df(df_new)
+            st.sidebar.success("Imported & saved. Reloading…")
+            time.sleep(0.6)
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Import failed: {e}")
 
-for acct in accounts:
-    with tabs[accounts.index(acct)]:
-        df_acc = df_all[df_all['account'] == acct].copy()
-        df_acc.sort_values('entry_date', inplace=True)
+st.sidebar.divider()
+# RESET current account data
+st.sidebar.markdown(
+    """
+    <style>
+      .danger-btn button {background: #2a0000; border: 1px solid #ff3b3b;}
+      .danger-btn button:hover {background: #400000;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+confirm_reset = st.sidebar.checkbox("I understand this deletes this account's rows")
+reset_clicked = st.sidebar.container().container()
+with st.sidebar.container():
+    c = st.container()
+    with c:
+        if st.sidebar.container().button("🧨 RESET", key="reset_btn", help="Delete all rows for this account", use_container_width=True, type="secondary"):
+            if confirm_reset:
+                before = len(df_all)
+                df_all = df_all[df_all["Account"] != selected_account]
+                save_df(df_all)
+                st.sidebar.success(f"Deleted {before - len(df_all)} rows for {selected_account}.")
+                st.rerun()
+            else:
+                st.sidebar.warning("Check the confirmation box first.")
 
-        if df_acc.empty:
-            # ensure at least one row to plot
-            df_acc = pd.DataFrame([{        
-                'entry_date': pd.to_datetime(date.today()),
-                'account': acct,
-                'pl': 0.0,
-                'id': 0
-            }])
+# ----------------------------
+# Main: Entry + Stats
+# ----------------------------
+st.title("💹 Forex Profit & Loss Tracker")
 
-        sb = settings[f'start_balance_{acct}']
-        pt = settings[f'profit_target_{acct}']
-        df_acc['Balance'] = df_acc['pl'].cumsum() + sb
-        curr_bal = df_acc.iloc[-1]['Balance']
-        # compute profit so far and percentage toward target
-        profit_so_far = curr_bal - sb
-        pct_to_tgt    = (profit_so_far / pt) * 100 if pt else 0
-        progress      = min(profit_so_far / pt, 1.0) if pt else 0
+left, right = st.columns([1,1])
 
-        # Three-column metrics: start, current, % to target
-        col1, col2, col3 = st.columns(3)
-        col1.metric('Start Balance', f'${sb:,.2f}')
-        col2.metric('Current Balance', f'${curr_bal:,.2f}')
-        col3.metric('% to Target', f'{pct_to_tgt:.2f}%')
+with left:
+    st.subheader("Add Entry")
+    entry_date = st.date_input("Date", value=date.today())
+    pl_value = st.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f")
+    add = st.button("🧾 Add Entry", use_container_width=True)
+    undo = st.button("↩️ Undo Last Entry", use_container_width=True)
 
-        # Neon-blue progress bar
-        st.markdown(f"""
-        <style>
-        @keyframes neonPulse {{
-            0% {{ box-shadow: 0 0 5px #0ff; }}
-            50% {{ box-shadow: 0 0 20px #0ff; }}
-            100% {{ box-shadow: 0 0 5px #0ff; }}
-        }}
-        .bar {{
-            width: {progress*100:.1f}%;
-            height: 20px;
-            background: linear-gradient(90deg, #39FF14, #0ff);
-            border-radius: 10px;
-            animation: neonPulse 1.2s infinite ease-in-out;
-            transition: width 0.5s ease;
-        }}
-        .container {{
-            width: 100%;
-            background: #111;
-            border: 2px solid #39FF1422;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }}
-        .label {{
-            color: #0ff;
-            text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-top: 5px;
-        }}
-        </style>
-        <div class='container'><div class='bar'></div></div>
-        <div class='label'>{progress*100:.1f}%</div>
-        """, unsafe_allow_html=True)
+    if add:
+        new_row = pd.DataFrame({
+            "Date": [pd.to_datetime(entry_date).strftime("%Y-%m-%d")],
+            "Account": [selected_account],
+            "PL": [float(pl_value)]
+        })
+        df_all = pd.concat([df_all, new_row], ignore_index=True)
+        save_df(df_all)
+        st.success(f"Added {pl_value:+.2f} for {selected_account}")
+        st.rerun()
 
-        # Dark-mode balance chart
-        fig, ax = plt.subplots(figsize=(8,4), facecolor='#222')
-        ax.set_facecolor('#333')
-        ax.plot(df_acc['entry_date'], df_acc['Balance'], linewidth=2)
-        ax.fill_between(df_acc['entry_date'], df_acc['Balance'], alpha=0.2)
-        ax.tick_params(colors='#0ff')
-        for spine in ax.spines.values(): spine.set_color('#0ff')
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        ax.grid(False)
-        st.pyplot(fig, use_container_width=True)
+    if undo:
+        mask = df_all["Account"] == selected_account
+        idx = df_all[mask].tail(1).index
+        if len(idx):
+            df_all = df_all.drop(idx)
+            save_df(df_all)
+            st.info("Last entry removed.")
+            st.rerun()
+        else:
+            st.warning("No entries to undo for this account.")
 
-        # Styled entries table
-        styled = (
-            df_acc[['entry_date','pl','Balance']]
-            .rename(columns={'entry_date':'Date','pl':'P/L'})
-            .style
-            .format({'P/L': '{:+.2f}', 'Balance':'{:.2f}'})
-            .applymap(
-                lambda v: 'color:#39FF14' if v > 0 else ('color:#FF0055' if v < 0 else ''),
-                subset=['P/L']
-            )
-        )
-        st.dataframe(styled, use_container_width=True)
+# compute metrics
+df_acc = df_all[df_all["Account"] == selected_account].copy()
+if not df_acc.empty:
+    # ensure Date dtype + sort
+    df_acc["Date"] = pd.to_datetime(df_acc["Date"], errors="coerce")
+    df_acc = df_acc.dropna(subset=["Date"]).sort_values("Date")
+else:
+    df_acc = pd.DataFrame(columns=["Date", "Account", "PL"])
+
+cum_profit = float(df_acc["PL"].sum()) if not df_acc.empty else 0.0
+current_balance = float(sb + cum_profit)
+target_profit = max(tb - sb, 1e-9)  # avoid div by zero
+pct_to_target = float(np.clip((current_balance - sb) / target_profit * 100.0, 0.0, 100.0))
+
+with right:
+    st.subheader("Overview")
+    m1, m2 = st.columns(2)
+    m1.metric("Current Balance", f"${current_balance:,.2f}")
+    m2.metric("To Target", f"{pct_to_target:.2f}%")
+
+# ----------------------------
+# Neon Blue Animated Progress
+# ----------------------------
+st.markdown(
+    f"""
+    <style>
+    .progress-wrap {{
+        background: #0b0b0b;
+        border: 1px solid #0ff5;
+        border-radius: 10px;
+        padding: 10px;
+        margin-top: 10px;
+    }}
+    .progress-bar {{
+        height: 16px;
+        width: {pct_to_target}%;
+        max-width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 0 8px #0ff, inset 0 0 6px #0ff4;
+        animation: glow 2s ease-in-out infinite alternate;
+        background: linear-gradient(90deg, rgba(0,255,255,0.25), rgba(0,255,255,0.9));
+    }}
+    @keyframes glow {{
+        0% {{ box-shadow: 0 0 4px #0ff, inset 0 0 4px #0ff3; }}
+        100% {{ box-shadow: 0 0 12px #0ff, inset 0 0 10px #0ff6; }}
+    }}
+    .progress-label {{
+        color: #8ef;
+        font-weight: 600;
+        margin-bottom: 6px;
+        text-shadow: 0 0 8px #0ff5;
+    }}
+    </style>
+    <div class="progress-wrap">
+        <div class="progress-label">Progress to Target: {pct_to_target:.2f}%</div>
+        <div class="progress-bar"></div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ----------------------------
+# Chart: dark, no grid, green progress line
+# ----------------------------
+st.markdown("#### Equity Progress (Cumulative P/L)")
+fig, ax = plt.subplots(figsize=(8, 4))
+fig.patch.set_facecolor("#111111")
+ax.set_facecolor("#111111")
+
+if not df_acc.empty:
+    df_acc["CumPL"] = df_acc["PL"].cumsum()
+    ax.plot(df_acc["Date"], df_acc["CumPL"])  # default color (user's matplotlib); looks fine on dark
+    # target profit line
+    ax.axhline(y=target_profit, linestyle="--")
+    # zero line
+    ax.axhline(y=0, linewidth=0.8)
+
+# cosmetics
+ax.grid(False)
+ax.tick_params(colors="#b0b0b0")
+for spine in ax.spines.values():
+    spine.set_color("#333333")
+ax.set_xlabel("Date", color="#b0b0b0")
+ax.set_ylabel("Cumulative P/L ($)", color="#b0b0b0")
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
+
+st.pyplot(fig, use_container_width=True)
+
+# ----------------------------
+# Table
+# ----------------------------
+st.markdown("#### Entries")
+st.dataframe(
+    df_all.sort_values(["Account", "Date"], ascending=[True, True]).reset_index(drop=True),
+    use_container_width=True
+)
