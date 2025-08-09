@@ -98,11 +98,11 @@ if "account_cfg" not in settings:
     save_settings(settings)
 
 # ----------------------------
-# Sidebar – Accounts & Safety
+# Sidebar – Settings, Add Entry, Safety
 # ----------------------------
 st.sidebar.title("⚙️ Settings")
 
-# manage accounts
+# Manage accounts
 with st.sidebar.expander("Accounts", expanded=True):
     selected_account = st.selectbox("Select account", settings["accounts"])
     new_acc = st.text_input("Add account")
@@ -124,7 +124,7 @@ with st.sidebar.expander("Accounts", expanded=True):
                 st.warning(f"Removed account '{selected_account}' from list (data rows remain).")
                 st.rerun()
 
-# per-account targets (inputs can remain floats; display elsewhere is no-decimals)
+# Per-account targets
 cfg = settings["account_cfg"].get(selected_account, {"starting_balance": 1000.0, "target_balance": 2000.0})
 sb = float(st.sidebar.number_input("Starting Balance ($)", value=float(cfg["starting_balance"]), step=100.0))
 tb = float(st.sidebar.number_input("Target Balance ($)", value=float(cfg["target_balance"]), step=100.0, help="When current balance hits this, progress = 100%"))
@@ -134,6 +134,36 @@ if st.sidebar.button("💾 Save Account Config", use_container_width=True):
     settings["account_cfg"][selected_account] = {"starting_balance": sb, "target_balance": tb}
     save_settings(settings)
     st.sidebar.success("Saved")
+
+# Sidebar Add Entry (moved off main page)
+st.sidebar.subheader("🧾 Add Entry")
+entry_date = st.sidebar.date_input("Date", value=date.today(), key="sidebar_date")
+pl_value = st.sidebar.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f", key="sidebar_pl")
+
+add_clicked = st.sidebar.button("Add", use_container_width=True)
+undo_clicked = st.sidebar.button("↩️ Undo Last Entry", use_container_width=True)
+
+if add_clicked:
+    new_row = pd.DataFrame({
+        "Date": [pd.to_datetime(entry_date).strftime("%Y-%m-%d")],
+        "Account": [selected_account],
+        "PL": [float(pl_value)]
+    })
+    df_all = pd.concat([df_all, new_row], ignore_index=True)
+    save_df(df_all)
+    st.sidebar.success(f"Added {pl_value:+,.0f} for {selected_account}")  # no decimals
+    st.rerun()
+
+if undo_clicked:
+    mask = df_all["Account"] == selected_account
+    idx = df_all[mask].tail(1).index
+    if len(idx):
+        df_all = df_all.drop(idx)
+        save_df(df_all)
+        st.sidebar.info("Last entry removed.")
+        st.rerun()
+    else:
+        st.sidebar.warning("No entries to undo for this account.")
 
 # Export / Import & backups
 st.sidebar.markdown("### 🛟 Data Safety")
@@ -158,16 +188,6 @@ with col_imp:
             st.sidebar.error(f"Import failed: {e}")
 
 st.sidebar.divider()
-# RESET current account data
-st.sidebar.markdown(
-    """
-    <style>
-      .danger-btn button {background: #2a0000; border: 1px solid #ff3b3b;}
-      .danger-btn button:hover {background: #400000;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 confirm_reset = st.sidebar.checkbox("I understand this deletes this account's rows")
 if st.sidebar.button("🧨 RESET", key="reset_btn", help="Delete all rows for this account", use_container_width=True, type="secondary"):
     if confirm_reset:
@@ -180,7 +200,7 @@ if st.sidebar.button("🧨 RESET", key="reset_btn", help="Delete all rows for th
         st.sidebar.warning("Check the confirmation box first.")
 
 # ----------------------------
-# Compute metrics (before rendering)
+# Compute metrics
 # ----------------------------
 df_acc = df_all[df_all["Account"] == selected_account].copy()
 if not df_acc.empty:
@@ -191,57 +211,20 @@ else:
 
 cum_profit = float(df_acc["PL"].sum()) if not df_acc.empty else 0.0
 current_balance = float(sb + cum_profit)
-target_profit = max(tb - sb, 1e-9)  # avoid div by zero
+target_profit = max(tb - sb, 1e-9)
 pct_to_target = float(np.clip((current_balance - sb) / target_profit * 100.0, 0.0, 100.0))
 
 # ----------------------------
-# Main: Overview (full width)
+# Main: CLEAN Overview only
 # ----------------------------
 st.title("💹 Forex Profit & Loss Tracker")
 
 st.subheader("Overview")
 m1, m2 = st.columns(2)
-m1.metric("Current Balance", f"${current_balance:,.0f}")        # ← no decimals
-m2.metric("To Target", f"{pct_to_target:.2f}%")                  # keep 2 decimals for %
+m1.metric("Current Balance", f"${current_balance:,.0f}")         # no decimals
+m2.metric("To Target", f"{pct_to_target:.2f}%")
 
-# ----------------------------
-# Add Entry (below Overview)
-# ----------------------------
-st.subheader("Add Entry")
-entry_date = st.date_input("Date", value=date.today())
-pl_value = st.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f")  # input can be decimal
-
-btn_col1, btn_col2 = st.columns([1,1])
-with btn_col1:
-    add = st.button("🧾 Add Entry", use_container_width=True)
-with btn_col2:
-    undo = st.button("↩️ Undo Last Entry", use_container_width=True)
-
-if add:
-    new_row = pd.DataFrame({
-        "Date": [pd.to_datetime(entry_date).strftime("%Y-%m-%d")],
-        "Account": [selected_account],
-        "PL": [float(pl_value)]
-    })
-    df_all = pd.concat([df_all, new_row], ignore_index=True)
-    save_df(df_all)
-    st.success(f"Added {pl_value:+,.0f} for {selected_account}")  # ← no decimals
-    st.rerun()
-
-if undo:
-    mask = df_all["Account"] == selected_account
-    idx = df_all[mask].tail(1).index
-    if len(idx):
-        df_all = df_all.drop(idx)
-        save_df(df_all)
-        st.info("Last entry removed.")
-        st.rerun()
-    else:
-        st.warning("No entries to undo for this account.")
-
-# ----------------------------
 # Neon Blue Animated Progress
-# ----------------------------
 st.markdown(
     f"""
     <style>
@@ -280,9 +263,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ----------------------------
-# Chart: dark, no grid, green progress line
-# ----------------------------
+# Chart: dark, no grid
 st.markdown("#### Equity Progress (Cumulative P/L)")
 fig, ax = plt.subplots(figsize=(8, 4))
 fig.patch.set_facecolor("#111111")
@@ -290,9 +271,9 @@ ax.set_facecolor("#111111")
 
 if not df_acc.empty:
     df_acc["CumPL"] = df_acc["PL"].cumsum()
-    ax.plot(df_acc["Date"], df_acc["CumPL"])      # default color on dark bg
-    ax.axhline(y=target_profit, linestyle="--")   # target profit line
-    ax.axhline(y=0, linewidth=0.8)                # zero line
+    ax.plot(df_acc["Date"], df_acc["CumPL"])    # default color on dark bg
+    ax.axhline(y=target_profit, linestyle="--") # target profit line
+    ax.axhline(y=0, linewidth=0.8)              # zero line
 
 ax.grid(False)
 ax.tick_params(colors="#b0b0b0")
@@ -305,13 +286,10 @@ plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
 
 st.pyplot(fig, use_container_width=True)
 
-# ----------------------------
-# Table (display PL without decimals)
-# ----------------------------
+# Table (show PL without decimals)
 st.markdown("#### Entries")
 df_display = df_all.copy()
 if not df_display.empty:
-    # Show PL with no decimals; keep underlying df_all numeric for math/exports
     df_display["PL"] = df_display["PL"].apply(lambda x: f"{x:,.0f}")
 st.dataframe(
     df_display.sort_values(["Account", "Date"], ascending=[True, True]).reset_index(drop=True),
