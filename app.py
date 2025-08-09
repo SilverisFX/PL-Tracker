@@ -116,7 +116,7 @@ with st.sidebar.expander("Accounts", expanded=True):
                 st.success(f"Added account '{new_acc}'")
                 st.rerun()
     with c2:
-        if st.button("🗑️ Remove", use_container_width=True, help="Remove current account"):
+       if st.button("Remove", use_container_width=True, help="Remove current account"):
             if selected_account in settings["accounts"]:
                 settings["accounts"].remove(selected_account)
                 settings["account_cfg"].pop(selected_account, None)
