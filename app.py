@@ -124,7 +124,7 @@ with st.sidebar.expander("Accounts", expanded=True):
                 st.warning(f"Removed account '{selected_account}' from list (data rows remain).")
                 st.rerun()
 
-# per-account targets
+# per-account targets (inputs can remain floats; display elsewhere is no-decimals)
 cfg = settings["account_cfg"].get(selected_account, {"starting_balance": 1000.0, "target_balance": 2000.0})
 sb = float(st.sidebar.number_input("Starting Balance ($)", value=float(cfg["starting_balance"]), step=100.0))
 tb = float(st.sidebar.number_input("Target Balance ($)", value=float(cfg["target_balance"]), step=100.0, help="When current balance hits this, progress = 100%"))
@@ -201,15 +201,15 @@ st.title("💹 Forex Profit & Loss Tracker")
 
 st.subheader("Overview")
 m1, m2 = st.columns(2)
-m1.metric("Current Balance", f"${current_balance:,.2f}")
-m2.metric("To Target", f"{pct_to_target:.2f}%")
+m1.metric("Current Balance", f"${current_balance:,.0f}")        # ← no decimals
+m2.metric("To Target", f"{pct_to_target:.2f}%")                  # keep 2 decimals for %
 
 # ----------------------------
-# Add Entry (moved below Overview)
+# Add Entry (below Overview)
 # ----------------------------
 st.subheader("Add Entry")
 entry_date = st.date_input("Date", value=date.today())
-pl_value = st.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f")
+pl_value = st.number_input("P/L Amount ($)", value=0.00, step=10.0, format="%.2f")  # input can be decimal
 
 btn_col1, btn_col2 = st.columns([1,1])
 with btn_col1:
@@ -225,7 +225,7 @@ if add:
     })
     df_all = pd.concat([df_all, new_row], ignore_index=True)
     save_df(df_all)
-    st.success(f"Added {pl_value:+.2f} for {selected_account}")
+    st.success(f"Added {pl_value:+,.0f} for {selected_account}")  # ← no decimals
     st.rerun()
 
 if undo:
@@ -290,9 +290,9 @@ ax.set_facecolor("#111111")
 
 if not df_acc.empty:
     df_acc["CumPL"] = df_acc["PL"].cumsum()
-    ax.plot(df_acc["Date"], df_acc["CumPL"])  # default color
-    ax.axhline(y=target_profit, linestyle="--")  # target profit line
-    ax.axhline(y=0, linewidth=0.8)               # zero line
+    ax.plot(df_acc["Date"], df_acc["CumPL"])      # default color on dark bg
+    ax.axhline(y=target_profit, linestyle="--")   # target profit line
+    ax.axhline(y=0, linewidth=0.8)                # zero line
 
 ax.grid(False)
 ax.tick_params(colors="#b0b0b0")
@@ -306,10 +306,14 @@ plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
 st.pyplot(fig, use_container_width=True)
 
 # ----------------------------
-# Table
+# Table (display PL without decimals)
 # ----------------------------
 st.markdown("#### Entries")
+df_display = df_all.copy()
+if not df_display.empty:
+    # Show PL with no decimals; keep underlying df_all numeric for math/exports
+    df_display["PL"] = df_display["PL"].apply(lambda x: f"{x:,.0f}")
 st.dataframe(
-    df_all.sort_values(["Account", "Date"], ascending=[True, True]).reset_index(drop=True),
+    df_display.sort_values(["Account", "Date"], ascending=[True, True]).reset_index(drop=True),
     use_container_width=True
 )
