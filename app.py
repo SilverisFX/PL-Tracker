@@ -211,7 +211,7 @@ pct_to_target = float(np.clip((current_balance - sb) / target_profit * 100.0, 0.
 # ----------------------------
 # Main Page
 # ----------------------------
-st.title("💹 Forex Profit & Loss Tracker")
+st.title("💹")
 
 st.subheader("Overview")
 m1, m2 = st.columns(2)
